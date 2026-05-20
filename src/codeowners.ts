@@ -91,8 +91,7 @@ export function matchCodeOwner(rules: CodeOwnerRule[], relativeFilePath: string)
   }
 
   return matchedOwners?.join(', ');
-}
-
+} 
 export function matchesCodeownersPattern(pattern: string, relativeFilePath: string): boolean {
   const normalizedPattern = normalizePattern(pattern);
   const normalizedPath = normalizePath(relativeFilePath);

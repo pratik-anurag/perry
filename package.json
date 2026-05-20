@@ -17,15 +17,14 @@
     "Other"
   ],
   "activationEvents": [
-    "onLanguage:typescript",
-    "onLanguage:javascript",
-    "onLanguage:typescriptreact",
-    "onLanguage:javascriptreact",
-    "onLanguage:python",
-    "onLanguage:go",
+    "onCommand:perry.start",
+    "onCommand:perry.stop",
     "onCommand:perry.refresh",
     "onCommand:perry.showDetails",
-    "onCommand:perry.toggle"
+    "onCommand:perry.toggle",
+    "onCommand:perry.showDiagnostics",
+    "onCommand:perry.revealReferences",
+    "onCommand:perry.openTestFile"
   ],
   "main": "./out/extension.js",
   "scripts": {
@@ -47,6 +46,14 @@
   "contributes": {
     "commands": [
       {
+        "command": "perry.start",
+        "title": "Perry: Start"
+      },
+      {
+        "command": "perry.stop",
+        "title": "Perry: Stop"
+      },
+      {
         "command": "perry.refresh",
         "title": "Perry: Refresh"
       },
@@ -57,6 +64,10 @@
       {
         "command": "perry.toggle",
         "title": "Perry: Toggle"
+      },
+      {
+        "command": "perry.showDiagnostics",
+        "title": "Perry: Show Diagnostics"
       }
     ],
     "configuration": {
@@ -65,7 +76,7 @@
         "perry.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable Perry inline annotations."
+          "description": "Enable Perry inline annotations after Perry has been manually started."
         },
         "perry.showInlineContext": {
           "type": "boolean",
