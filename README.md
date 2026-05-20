@@ -6,14 +6,7 @@ Perry starts only when you ask it to. Run `Perry: Start` from the Command Palett
 
 Example context:
 
-```text
-// Used by: CheckoutPage, OrderService
-// Calls: validateCart(), calculateTax()
-// Last changed: 3 days ago by Anika
-// Related tests: order.service.test.ts
-// Owner: Payments Team
-function placeOrder() {}
-```
+![alt text](image.png)
 
 The editor line above a symbol uses VS Code CodeLens, so it reserves space and does not overlap source text. Hover a function, method, class, interface, or module to see the full comment-style context card with actions. Where VS Code document links are available, Ctrl/Cmd-click the symbol name to open the details panel.
 
