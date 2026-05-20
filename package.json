@@ -1,0 +1,124 @@
+{
+  "name": "context-lens",
+  "displayName": "Context Lens",
+  "description": "Inline code intelligence showing references, Git history, tests, and ownership.",
+  "version": "0.1.0",
+  "publisher": "perry",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pratik-anurag/perry.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:javascript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascriptreact",
+    "onLanguage:python",
+    "onLanguage:go",
+    "onCommand:contextLens.refresh",
+    "onCommand:contextLens.showDetails",
+    "onCommand:contextLens.toggle"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies",
+    "package:check": "vsce ls",
+    "release:local": "npm run compile && vsce package --no-dependencies",
+    "install:local": "node scripts/install-local-vsix.js",
+    "test": "npm run compile && node --test out/test/*.test.js",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.9.1",
+    "typescript": "^5.4.5"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "contextLens.refresh",
+        "title": "Context Lens: Refresh"
+      },
+      {
+        "command": "contextLens.showDetails",
+        "title": "Context Lens: Show Details"
+      },
+      {
+        "command": "contextLens.toggle",
+        "title": "Context Lens: Toggle"
+      }
+    ],
+    "configuration": {
+      "title": "Context Lens",
+      "properties": {
+        "contextLens.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Context Lens inline annotations."
+        },
+        "contextLens.showInlineContext": {
+          "type": "boolean",
+          "default": false,
+          "description": "Deprecated. Inline decoration blocks are disabled because VS Code decorations do not reserve editor space."
+        },
+        "contextLens.showDetailsLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a non-overlapping CodeLens summary for opening the details panel."
+        },
+        "contextLens.enableHover": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a rich Context Lens hover card when hovering symbols."
+        },
+        "contextLens.enableSymbolLinks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Make symbol names clickable with Ctrl/Cmd-click where VS Code document links are available."
+        },
+        "contextLens.showGutterMarkers": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a small Context Lens marker in the editor gutter next to annotated symbols."
+        },
+        "contextLens.maxSymbolsPerFile": {
+          "type": "number",
+          "default": 100,
+          "minimum": 1,
+          "description": "Maximum number of symbols to annotate in a single file."
+        },
+        "contextLens.enableGit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include local Git blame or log context."
+        },
+        "contextLens.enableReferences": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include reference counts from the active language server."
+        },
+        "contextLens.enableTests": {
+          "type": "boolean",
+          "default": true,
+          "description": "Search workspace test files for related tests."
+        },
+        "contextLens.enableOwners": {
+          "type": "boolean",
+          "default": true,
+          "description": "Match files against local CODEOWNERS rules."
+        }
+      }
+    }
+  }
+}

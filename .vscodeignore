@@ -1,0 +1,14 @@
+.vscode/**
+.vscode-test/**
+.git/**
+.gitignore
+src/**
+test/**
+tsconfig.json
+out/test/**
+**/*.map
+*.vsix
+node_modules/**
+package-lock.json
+README-dev.md
+scripts/**
