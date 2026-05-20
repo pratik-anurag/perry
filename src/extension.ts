@@ -82,10 +82,10 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     output,
     vscode.commands.registerCommand('perry.start', async () => {
-      await startPerry(getRuntime(), true);
+      await startPerry(getRuntime());
     }),
     vscode.commands.registerCommand('perry.stop', async () => {
-      await stopPerry(getRuntime(), true);
+      await stopPerry(getRuntime());
     }),
     vscode.commands.registerCommand('perry.refresh', () => {
       const currentRuntime = getRuntime();
@@ -99,9 +99,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('perry.toggle', async () => {
       const currentRuntime = getRuntime();
       if (currentRuntime.started) {
-        await stopPerry(currentRuntime, true);
+        await stopPerry(currentRuntime);
       } else {
-        await startPerry(currentRuntime, true);
+        await startPerry(currentRuntime);
       }
     }),
     vscode.commands.registerCommand('perry.showDiagnostics', () => {
@@ -143,16 +143,6 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       const currentRuntime = getRuntime();
-      if (event.affectsConfiguration('perry.enabled')) {
-        const enabled = vscode.workspace.getConfiguration('perry').get<boolean>('enabled', true);
-        if (enabled && !currentRuntime.started && !currentRuntime.starting) {
-          void startPerry(currentRuntime, false);
-        } else if (!enabled && currentRuntime.started && !currentRuntime.stopping) {
-          void stopPerry(currentRuntime, false);
-        }
-        return;
-      }
-
       if (event.affectsConfiguration('perry') && currentRuntime.started) {
         clearAllCaches(provider, currentRuntime.gitService, currentRuntime.testDiscovery, currentRuntime.codeownersService);
       }
@@ -177,7 +167,7 @@ export function deactivate(): void {
   runtime = undefined;
 }
 
-async function startPerry(currentRuntime: PerryRuntime, updateConfig: boolean): Promise<void> {
+async function startPerry(currentRuntime: PerryRuntime): Promise<void> {
   if (currentRuntime.started || currentRuntime.starting) {
     vscode.window.showInformationMessage('Perry is already running.');
     return;
@@ -191,10 +181,6 @@ async function startPerry(currentRuntime: PerryRuntime, updateConfig: boolean): 
 
   currentRuntime.starting = true;
   try {
-    if (updateConfig) {
-      await updatePerryEnabled(true);
-    }
-
     const startStartedAt = performance.now();
     const startMemoryBefore = process.memoryUsage();
     provider = new PerryProvider({
@@ -261,7 +247,7 @@ async function startPerry(currentRuntime: PerryRuntime, updateConfig: boolean): 
   }
 }
 
-async function stopPerry(currentRuntime: PerryRuntime, updateConfig: boolean): Promise<void> {
+async function stopPerry(currentRuntime: PerryRuntime): Promise<void> {
   if (!currentRuntime.started || currentRuntime.stopping) {
     vscode.window.showInformationMessage('Perry is already stopped.');
     return;
@@ -270,9 +256,6 @@ async function stopPerry(currentRuntime: PerryRuntime, updateConfig: boolean): P
   currentRuntime.stopping = true;
   try {
     disposeActiveRuntime(currentRuntime);
-    if (updateConfig) {
-      await updatePerryEnabled(false);
-    }
     currentRuntime.output.appendLine('Perry stopped.');
     vscode.window.showInformationMessage('Perry stopped.');
   } finally {
@@ -292,14 +275,6 @@ function disposeActiveRuntime(currentRuntime: PerryRuntime): void {
     currentRuntime.testDiscovery,
     currentRuntime.codeownersService
   );
-}
-
-async function updatePerryEnabled(enabled: boolean): Promise<void> {
-  const config = vscode.workspace.getConfiguration('perry');
-  const target = vscode.workspace.workspaceFolders
-    ? vscode.ConfigurationTarget.Workspace
-    : vscode.ConfigurationTarget.Global;
-  await config.update('enabled', enabled, target);
 }
 
 function getRuntime(): PerryRuntime {

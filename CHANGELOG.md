@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- Changed `Perry: Start`, `Perry: Stop`, and `Perry: Toggle` to use session state only instead of writing `.vscode/settings.json`.
+- Removed the generated workspace settings file and ignored future `.vscode/settings.json` files.
+
 ## 0.1.1
 
 - Added Workspace Trust gating before Perry starts file scanning, Git context, and file watching.
