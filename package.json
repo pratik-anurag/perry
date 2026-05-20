@@ -2,7 +2,7 @@
   "name": "perry-code-context",
   "displayName": "Perry Code Context",
   "description": "Inline code intelligence showing references, Git history, tests, and ownership.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "kitarpgaruna",
   "icon": "media/perry-icon.png",
   "license": "MIT",
@@ -28,6 +28,12 @@
   "galleryBanner": {
     "color": "#1f2937",
     "theme": "dark"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Perry can load its commands in untrusted workspaces, but code intelligence, Git context, file watching, and test discovery require a trusted workspace."
+    }
   },
   "activationEvents": [
     "onCommand:perry.start",

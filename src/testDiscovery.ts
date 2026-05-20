@@ -17,6 +17,8 @@ const TEST_PATTERNS = [
 ];
 
 const EXCLUDE_PATTERN = '**/{node_modules,.git,out,dist,build,coverage}/**';
+export const MAX_TEST_FILE_BYTES = 256 * 1024;
+export const MAX_TEST_INDEX_BYTES = 8 * 1024 * 1024;
 
 export class TestDiscovery {
   private indexPromise: Promise<TestFileSnapshot[]> | undefined;
@@ -61,13 +63,25 @@ export class TestDiscovery {
     }
 
     const snapshots: TestFileSnapshot[] = [];
+    let totalIndexedBytes = 0;
     for (const uri of byUri.values()) {
       if (token?.isCancellationRequested) {
         break;
       }
 
       try {
+        const stat = await this.vscodeApi.workspace.fs.stat(uri);
+        if (stat.size > MAX_TEST_FILE_BYTES) {
+          this.logger.appendLine(`Skipping large test file ${uri.fsPath}: ${stat.size} bytes.`);
+          continue;
+        }
+        if (!canIndexTestFile(stat.size, totalIndexedBytes)) {
+          this.logger.appendLine(`Stopping test discovery at ${formatBytes(totalIndexedBytes)} indexed.`);
+          break;
+        }
+
         const bytes = await this.vscodeApi.workspace.fs.readFile(uri);
+        totalIndexedBytes += bytes.byteLength;
         snapshots.push({
           path: uri.fsPath,
           uri: uri.toString(),
@@ -81,6 +95,22 @@ export class TestDiscovery {
 
     return snapshots;
   }
+}
+
+export function canIndexTestFile(
+  fileSizeBytes: number,
+  currentTotalBytes: number,
+  maxFileBytes = MAX_TEST_FILE_BYTES,
+  maxTotalBytes = MAX_TEST_INDEX_BYTES
+): boolean {
+  return (
+    Number.isFinite(fileSizeBytes) &&
+    Number.isFinite(currentTotalBytes) &&
+    fileSizeBytes >= 0 &&
+    currentTotalBytes >= 0 &&
+    fileSizeBytes <= maxFileBytes &&
+    currentTotalBytes + fileSizeBytes <= maxTotalBytes
+  );
 }
 
 export function findRelatedTestFiles(
@@ -125,6 +155,10 @@ function basenameWithoutKnownExtensions(filePath: string): string {
   return fileName
     .replace(/_test\.go$/i, '')
     .replace(/\.(test|spec)?\.?(ts|tsx|js|jsx|py|go)$/i, '');
+}
+
+function formatBytes(value: number): string {
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function stringifyError(error: unknown): string {

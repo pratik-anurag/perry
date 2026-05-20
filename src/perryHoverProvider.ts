@@ -69,7 +69,9 @@ export class PerryHoverProvider implements vscode.HoverProvider, vscode.Document
 
 function buildHoverMarkdown(context: SymbolContext, languageId: string): vscode.MarkdownString {
   const markdown = new vscode.MarkdownString(undefined, true);
-  markdown.isTrusted = true;
+  markdown.isTrusted = {
+    enabledCommands: ['perry.showDetails', 'perry.revealReferences', 'perry.openTestFile']
+  };
   markdown.supportThemeIcons = true;
 
   const references = context.references.available ? `${context.references.count}` : 'unavailable';

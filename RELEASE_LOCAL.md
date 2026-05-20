@@ -19,7 +19,7 @@ perry-code-context-<version>.vsix
 For the current package version, expect:
 
 ```text
-perry-code-context-0.1.0.vsix
+perry-code-context-0.1.1.vsix
 ```
 
 ## Inspect Package Contents
@@ -35,7 +35,7 @@ npm run package:check
 Install with the VS Code CLI:
 
 ```sh
-code --install-extension perry-code-context-0.1.0.vsix
+code --install-extension perry-code-context-0.1.1.vsix
 ```
 
 Or install the latest generated VSIX in this directory:
@@ -73,7 +73,7 @@ code --uninstall-extension kitarpgaruna.perry-code-context
 Reinstall:
 
 ```sh
-code --install-extension perry-code-context-0.1.0.vsix
+code --install-extension perry-code-context-0.1.1.vsix
 ```
 
 ## Version Bumps

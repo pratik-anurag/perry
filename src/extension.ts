@@ -1,3 +1,4 @@
+import path from 'path';
 import * as vscode from 'vscode';
 import { CodeownersService } from './codeowners';
 import { PerryHoverProvider } from './perryHoverProvider';
@@ -11,6 +12,7 @@ interface PerryRuntime {
   gitService: GitService;
   testDiscovery: TestDiscovery;
   codeownersService: CodeownersService;
+  workspaceRoots: string[];
   activeDisposables: vscode.Disposable[];
   activation: ActivationDiagnostics;
   lastStart: StartDiagnostics | undefined;
@@ -42,6 +44,12 @@ const selectors: vscode.DocumentSelector = [
   { language: 'python', scheme: 'file' },
   { language: 'go', scheme: 'file' }
 ];
+const watcherDebounceMs = 250;
+const perryCommandAllowlist = [
+  'perry.showDetails',
+  'perry.revealReferences',
+  'perry.openTestFile'
+] as const;
 
 export function activate(context: vscode.ExtensionContext): void {
   const activationStartedAt = performance.now();
@@ -58,6 +66,7 @@ export function activate(context: vscode.ExtensionContext): void {
     gitService,
     testDiscovery,
     codeownersService,
+    workspaceRoots,
     activeDisposables: [],
     activation: {
       durationMs: performance.now() - activationStartedAt,
@@ -99,20 +108,34 @@ export function activate(context: vscode.ExtensionContext): void {
       showDiagnostics(getRuntime());
     }),
     vscode.commands.registerCommand('perry.showDetails', (symbolContext?: SymbolContext) => {
-      if (!isSymbolContext(symbolContext)) {
+      const currentRuntime = getRuntime();
+      if (!currentRuntime.started || !vscode.workspace.isTrusted) {
+        vscode.window.showInformationMessage('Start Perry in a trusted workspace before opening details.');
+        return;
+      }
+      if (!isSymbolContext(symbolContext) || !isWorkspaceSymbolContext(symbolContext, currentRuntime.workspaceRoots)) {
         vscode.window.showInformationMessage('Start Perry, then open a Perry item from a supported source file to view details.');
         return;
       }
       showDetailsPanel(symbolContext);
     }),
     vscode.commands.registerCommand('perry.revealReferences', async (symbolContext?: SymbolContext) => {
-      if (!isSymbolContext(symbolContext)) {
+      const currentRuntime = getRuntime();
+      if (!currentRuntime.started || !vscode.workspace.isTrusted) {
+        return;
+      }
+      if (!isSymbolContext(symbolContext) || !isWorkspaceSymbolContext(symbolContext, currentRuntime.workspaceRoots)) {
         return;
       }
       await revealReferences(symbolContext);
     }),
     vscode.commands.registerCommand('perry.openTestFile', async (filePath?: string) => {
-      if (!filePath) {
+      const currentRuntime = getRuntime();
+      if (!currentRuntime.started || !vscode.workspace.isTrusted || typeof filePath !== 'string') {
+        return;
+      }
+      if (!isPathInsideWorkspace(filePath, currentRuntime.workspaceRoots)) {
+        vscode.window.showWarningMessage('Perry only opens related test files from the current workspace.');
         return;
       }
       const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
@@ -160,6 +183,12 @@ async function startPerry(currentRuntime: PerryRuntime, updateConfig: boolean): 
     return;
   }
 
+  if (!vscode.workspace.isTrusted) {
+    currentRuntime.output.appendLine('Perry start blocked because the workspace is not trusted.');
+    vscode.window.showWarningMessage('Perry requires a trusted workspace before it can scan files or run Git.');
+    return;
+  }
+
   currentRuntime.starting = true;
   try {
     if (updateConfig) {
@@ -183,17 +212,35 @@ async function startPerry(currentRuntime: PerryRuntime, updateConfig: boolean): 
       vscode.workspace.onDidSaveTextDocument(() => provider?.clearCache())
     );
 
+    let cacheClearTimer: NodeJS.Timeout | undefined;
+    const clearCaches = () => {
+      clearAllCaches(provider, currentRuntime.gitService, currentRuntime.testDiscovery, currentRuntime.codeownersService);
+    };
+    const scheduleCacheClear = () => {
+      if (cacheClearTimer) {
+        clearTimeout(cacheClearTimer);
+      }
+      cacheClearTimer = setTimeout(() => {
+        cacheClearTimer = undefined;
+        clearCaches();
+      }, watcherDebounceMs);
+    };
     const watcher = vscode.workspace.createFileSystemWatcher('**/*');
     currentRuntime.activeDisposables.push(
       watcher,
       watcher.onDidCreate(() => {
-        clearAllCaches(provider, currentRuntime.gitService, currentRuntime.testDiscovery, currentRuntime.codeownersService);
+        scheduleCacheClear();
       }),
       watcher.onDidChange(() => {
-        clearAllCaches(provider, currentRuntime.gitService, currentRuntime.testDiscovery, currentRuntime.codeownersService);
+        scheduleCacheClear();
       }),
       watcher.onDidDelete(() => {
-        clearAllCaches(provider, currentRuntime.gitService, currentRuntime.testDiscovery, currentRuntime.codeownersService);
+        scheduleCacheClear();
+      }),
+      new vscode.Disposable(() => {
+        if (cacheClearTimer) {
+          clearTimeout(cacheClearTimer);
+        }
       })
     );
 
@@ -324,7 +371,7 @@ function showDetailsPanel(context: SymbolContext): void {
     `Perry: ${context.symbol.name}`,
     vscode.ViewColumn.Beside,
     {
-      enableCommandUris: true
+      enableCommandUris: perryCommandAllowlist
     }
   );
 
@@ -391,6 +438,7 @@ function buildDetailsHtml(context: SymbolContext): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; form-action 'none';">
   <title>Perry Details</title>
   <style>
     :root {
@@ -857,11 +905,144 @@ function escapeHtml(value: string): string {
 }
 
 function isSymbolContext(value: unknown): value is SymbolContext {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as SymbolContext;
+  return (
+    isContextSymbol(candidate.symbol) &&
+    isReferenceContext(candidate.references) &&
+    isUsageContext(candidate.usedBy) &&
+    isCallsContext(candidate.calls) &&
+    isGitContext(candidate.git) &&
+    Array.isArray(candidate.tests) &&
+    candidate.tests.every(isRelatedTest) &&
+    isOwnerContext(candidate.owner)
+  );
+}
+
+function isWorkspaceSymbolContext(context: SymbolContext, workspaceRoots: string[]): boolean {
+  const uri = tryParseUri(context.symbol.uri);
   return Boolean(
-    value &&
-    typeof value === 'object' &&
-    'symbol' in value &&
-    typeof (value as SymbolContext).symbol?.name === 'string' &&
-    typeof (value as SymbolContext).symbol?.uri === 'string'
+    uri &&
+    uri.scheme === 'file' &&
+    isPathInsideWorkspace(uri.fsPath, workspaceRoots) &&
+    isPathInsideWorkspace(context.symbol.filePath, workspaceRoots)
+  );
+}
+
+function isPathInsideWorkspace(filePath: string, workspaceRoots: string[]): boolean {
+  if (!filePath || workspaceRoots.length === 0) {
+    return false;
+  }
+
+  const normalizedFilePath = normalizePathForComparison(path.resolve(filePath));
+  return workspaceRoots
+    .map((root) => normalizePathForComparison(path.resolve(root)))
+    .some((root) => {
+      const rootPrefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+      return normalizedFilePath === root || normalizedFilePath.startsWith(rootPrefix);
+    });
+}
+
+function normalizePathForComparison(value: string): string {
+  return process.platform === 'win32' ? value.toLowerCase() : value;
+}
+
+function tryParseUri(value: string): vscode.Uri | undefined {
+  try {
+    return vscode.Uri.parse(value);
+  } catch {
+    return undefined;
+  }
+}
+
+function isContextSymbol(value: unknown): boolean {
+  const symbol = value as SymbolContext['symbol'] | undefined;
+  return Boolean(
+    symbol &&
+    typeof symbol.name === 'string' &&
+    typeof symbol.kind === 'string' &&
+    typeof symbol.filePath === 'string' &&
+    typeof symbol.uri === 'string' &&
+    Number.isInteger(symbol.line) &&
+    symbol.line > 0 &&
+    isRangeData(symbol.range)
+  );
+}
+
+function isRangeData(value: unknown): boolean {
+  const range = value as SymbolContext['symbol']['range'] | undefined;
+  return Boolean(
+    range &&
+    isPositionData(range.start) &&
+    isPositionData(range.end) &&
+    (range.end.line > range.start.line ||
+      (range.end.line === range.start.line && range.end.character >= range.start.character))
+  );
+}
+
+function isPositionData(value: unknown): boolean {
+  const position = value as SymbolContext['symbol']['range']['start'] | undefined;
+  return Boolean(
+    position &&
+    Number.isInteger(position.line) &&
+    position.line >= 0 &&
+    Number.isInteger(position.character) &&
+    position.character >= 0
+  );
+}
+
+function isReferenceContext(value: unknown): boolean {
+  const references = value as SymbolContext['references'] | undefined;
+  return Boolean(
+    references &&
+    typeof references.available === 'boolean' &&
+    Number.isInteger(references.count) &&
+    references.count >= 0
+  );
+}
+
+function isUsageContext(value: unknown): boolean {
+  const usedBy = value as SymbolContext['usedBy'] | undefined;
+  return Boolean(
+    usedBy &&
+    typeof usedBy.available === 'boolean' &&
+    Array.isArray(usedBy.symbols) &&
+    usedBy.symbols.every((symbol) => typeof symbol === 'string')
+  );
+}
+
+function isCallsContext(value: unknown): boolean {
+  const calls = value as SymbolContext['calls'] | undefined;
+  return Boolean(
+    calls &&
+    Array.isArray(calls.symbols) &&
+    calls.symbols.every((symbol) => typeof symbol === 'string')
+  );
+}
+
+function isGitContext(value: unknown): boolean {
+  const git = value as SymbolContext['git'] | undefined;
+  return Boolean(
+    git &&
+    typeof git.available === 'boolean' &&
+    (git.author === undefined || typeof git.author === 'string') &&
+    (git.relativeDate === undefined || typeof git.relativeDate === 'string')
+  );
+}
+
+function isRelatedTest(value: unknown): boolean {
+  const test = value as SymbolContext['tests'][number] | undefined;
+  return Boolean(test && typeof test.path === 'string' && typeof test.uri === 'string');
+}
+
+function isOwnerContext(value: unknown): boolean {
+  const owner = value as SymbolContext['owner'] | undefined;
+  return Boolean(
+    owner &&
+    typeof owner.available === 'boolean' &&
+    (owner.owner === undefined || typeof owner.owner === 'string')
   );
 }

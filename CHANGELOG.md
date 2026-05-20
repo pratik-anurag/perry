@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1
+
+- Added Workspace Trust gating before Perry starts file scanning, Git context, and file watching.
+- Hardened details webview command links with a command allowlist and strict CSP.
+- Added stronger command argument validation for details, references, and related test file opening.
+- Added test discovery size caps and debounced broad workspace watcher cache invalidation.
+
 ## 0.1.0
 
 - Initial MVP of Perry.

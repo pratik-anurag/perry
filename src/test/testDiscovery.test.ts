@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findRelatedTestFiles, isRelatedTestFile, TestFileSnapshot } from '../testDiscovery';
+import {
+  canIndexTestFile,
+  findRelatedTestFiles,
+  isRelatedTestFile,
+  MAX_TEST_FILE_BYTES,
+  MAX_TEST_INDEX_BYTES,
+  TestFileSnapshot
+} from '../testDiscovery';
 
 test('test file matching detects source stem and symbol references', () => {
   assert.equal(isRelatedTestFile('/repo/src/userService.ts', 'createUser', '/repo/src/userService.test.ts', ''), true);
@@ -18,4 +25,11 @@ test('test file discovery limits related matches', () => {
   }));
 
   assert.equal(findRelatedTestFiles('/repo/src/source.ts', 'targetSymbol', files).length, 5);
+});
+
+test('test file indexing rejects oversized files and total indexes', () => {
+  assert.equal(canIndexTestFile(MAX_TEST_FILE_BYTES, 0), true);
+  assert.equal(canIndexTestFile(MAX_TEST_FILE_BYTES + 1, 0), false);
+  assert.equal(canIndexTestFile(1, MAX_TEST_INDEX_BYTES), false);
+  assert.equal(canIndexTestFile(1, MAX_TEST_INDEX_BYTES - 1), true);
 });
