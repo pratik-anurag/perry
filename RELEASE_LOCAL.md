@@ -1,6 +1,6 @@
 # Local VSIX Release
 
-Use this workflow to build and install Perry - Context Lens locally from a `.vsix` file. This does not publish anything to the VS Code Marketplace and does not require Marketplace credentials, Azure DevOps, or a Personal Access Token.
+Use this workflow to build and install Perry locally from a `.vsix` file. This does not publish anything to the VS Code Marketplace and does not require Marketplace credentials, Azure DevOps, or a Personal Access Token.
 
 ## Build
 
@@ -13,13 +13,13 @@ npm run release:local
 The generated VSIX filename follows this pattern:
 
 ```text
-context-lens-<version>.vsix
+perry-<version>.vsix
 ```
 
 For the current package version, expect:
 
 ```text
-context-lens-0.1.0.vsix
+perry-0.1.0.vsix
 ```
 
 ## Inspect Package Contents
@@ -35,7 +35,7 @@ npm run package:check
 Install with the VS Code CLI:
 
 ```sh
-code --install-extension context-lens-0.1.0.vsix
+code --install-extension perry-0.1.0.vsix
 ```
 
 Or install the latest generated VSIX in this directory:
@@ -61,19 +61,19 @@ The extension ID is usually:
 For this project:
 
 ```text
-perry.context-lens
+perry.perry
 ```
 
 Uninstall:
 
 ```sh
-code --uninstall-extension perry.context-lens
+code --uninstall-extension perry.perry
 ```
 
 Reinstall:
 
 ```sh
-code --install-extension context-lens-0.1.0.vsix
+code --install-extension perry-0.1.0.vsix
 ```
 
 ## Version Bumps

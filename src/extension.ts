@@ -1,29 +1,27 @@
 import * as vscode from 'vscode';
 import { CodeownersService } from './codeowners';
-import { ContextGutterProvider } from './contextGutterProvider';
-import { ContextHoverProvider } from './contextHoverProvider';
-import { ContextLensProvider } from './contextLensProvider';
+import { PerryHoverProvider } from './perryHoverProvider';
+import { PerryProvider } from './perryProvider';
 import { GitService } from './gitService';
 import { TestDiscovery } from './testDiscovery';
 import { SymbolContext } from './types';
 
-let provider: ContextLensProvider | undefined;
+let provider: PerryProvider | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
-  const output = vscode.window.createOutputChannel('Context Lens');
+  const output = vscode.window.createOutputChannel('Perry');
   const workspaceRoots = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath) ?? [];
   const gitService = new GitService(output);
   const testDiscovery = new TestDiscovery(vscode, output);
   const codeownersService = new CodeownersService(workspaceRoots, output);
 
-  provider = new ContextLensProvider({
+  provider = new PerryProvider({
     gitService,
     testDiscovery,
     codeownersService,
     logger: output
   });
-  const hoverProvider = new ContextHoverProvider(provider, output);
-  const gutterProvider = new ContextGutterProvider(context, provider, output);
+  const hoverProvider = new PerryHoverProvider(provider, output);
 
   const selectors: vscode.DocumentSelector = [
     { language: 'typescript', scheme: 'file' },
@@ -39,36 +37,34 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerCodeLensProvider(selectors, provider),
     vscode.languages.registerHoverProvider(selectors, hoverProvider),
     vscode.languages.registerDocumentLinkProvider(selectors, hoverProvider),
-    vscode.commands.registerCommand('contextLens.refresh', () => {
+    vscode.commands.registerCommand('perry.refresh', () => {
       clearAllCaches(provider, gitService, testDiscovery, codeownersService);
-      void gutterProvider.refreshVisibleEditors();
-      vscode.window.showInformationMessage('Context Lens refreshed.');
+      vscode.window.showInformationMessage('Perry refreshed.');
     }),
-    vscode.commands.registerCommand('contextLens.toggle', async () => {
-      const config = vscode.workspace.getConfiguration('contextLens');
+    vscode.commands.registerCommand('perry.toggle', async () => {
+      const config = vscode.workspace.getConfiguration('perry');
       const nextValue = !config.get<boolean>('enabled', true);
       const target = vscode.workspace.workspaceFolders
         ? vscode.ConfigurationTarget.Workspace
         : vscode.ConfigurationTarget.Global;
       await config.update('enabled', nextValue, target);
       provider?.clearCache();
-      void gutterProvider.refreshVisibleEditors();
-      vscode.window.showInformationMessage(`Context Lens ${nextValue ? 'enabled' : 'disabled'}.`);
+      vscode.window.showInformationMessage(`Perry ${nextValue ? 'enabled' : 'disabled'}.`);
     }),
-    vscode.commands.registerCommand('contextLens.showDetails', (symbolContext?: SymbolContext) => {
+    vscode.commands.registerCommand('perry.showDetails', (symbolContext?: SymbolContext) => {
       if (!isSymbolContext(symbolContext)) {
-        vscode.window.showInformationMessage('Open a Context Lens item from a supported source file to view details.');
+        vscode.window.showInformationMessage('Open a Perry item from a supported source file to view details.');
         return;
       }
       showDetailsPanel(symbolContext);
     }),
-    vscode.commands.registerCommand('contextLens.revealReferences', async (symbolContext?: SymbolContext) => {
+    vscode.commands.registerCommand('perry.revealReferences', async (symbolContext?: SymbolContext) => {
       if (!isSymbolContext(symbolContext)) {
         return;
       }
       await revealReferences(symbolContext);
     }),
-    vscode.commands.registerCommand('contextLens.openTestFile', async (filePath?: string) => {
+    vscode.commands.registerCommand('perry.openTestFile', async (filePath?: string) => {
       if (!filePath) {
         return;
       }
@@ -77,9 +73,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.workspace.onDidSaveTextDocument(() => provider?.clearCache()),
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration('contextLens')) {
+      if (event.affectsConfiguration('perry')) {
         clearAllCaches(provider, gitService, testDiscovery, codeownersService);
-        void gutterProvider.refreshVisibleEditors();
       }
     })
   );
@@ -89,20 +84,16 @@ export function activate(context: vscode.ExtensionContext): void {
     watcher,
     watcher.onDidCreate(() => {
       clearAllCaches(provider, gitService, testDiscovery, codeownersService);
-      void gutterProvider.refreshVisibleEditors();
     }),
     watcher.onDidChange(() => {
       clearAllCaches(provider, gitService, testDiscovery, codeownersService);
-      void gutterProvider.refreshVisibleEditors();
     }),
     watcher.onDidDelete(() => {
       clearAllCaches(provider, gitService, testDiscovery, codeownersService);
-      void gutterProvider.refreshVisibleEditors();
     })
   );
 
-  gutterProvider.bind(context);
-  output.appendLine('Context Lens activated.');
+  output.appendLine('Perry activated.');
 }
 
 export function deactivate(): void {
@@ -110,7 +101,7 @@ export function deactivate(): void {
 }
 
 function clearAllCaches(
-  contextLensProvider: ContextLensProvider | undefined,
+  perryProvider: PerryProvider | undefined,
   gitService: GitService,
   testDiscovery: TestDiscovery,
   codeownersService: CodeownersService
@@ -118,13 +109,13 @@ function clearAllCaches(
   gitService.clearCache();
   testDiscovery.clearCache();
   codeownersService.clearCache();
-  contextLensProvider?.clearCache();
+  perryProvider?.clearCache();
 }
 
 function showDetailsPanel(context: SymbolContext): void {
   const panel = vscode.window.createWebviewPanel(
-    'contextLensDetails',
-    `Context Lens: ${context.symbol.name}`,
+    'perryDetails',
+    `Perry: ${context.symbol.name}`,
     vscode.ViewColumn.Beside,
     {
       enableCommandUris: true
@@ -145,7 +136,7 @@ function buildDetailsHtml(context: SymbolContext): string {
   const gitAuthor = context.git.available ? context.git.author ?? 'unknown' : 'unavailable';
   const gitDate = context.git.available ? context.git.relativeDate ?? 'unknown' : 'unavailable';
   const owner = context.owner.available ? context.owner.owner ?? 'unknown' : 'unknown';
-  const revealUri = createCommandUri('contextLens.revealReferences', context);
+  const revealUri = createCommandUri('perry.revealReferences', context);
   const usedByChips = context.usedBy.available
     ? renderChips(context.usedBy.symbols, 'No callers found.')
     : '<div class="muted">References unavailable.</div>';
@@ -164,7 +155,7 @@ function buildDetailsHtml(context: SymbolContext): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Context Lens Details</title>
+  <title>Perry Details</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -341,7 +332,7 @@ async function revealReferences(context: SymbolContext): Promise<void> {
 }
 
 function createOpenFileCommandUri(filePath: string): string {
-  return createCommandUri('contextLens.openTestFile', filePath);
+  return createCommandUri('perry.openTestFile', filePath);
 }
 
 function createCommandUri(command: string, argument: unknown): string {

@@ -1,6 +1,6 @@
 {
-  "name": "context-lens",
-  "displayName": "Context Lens",
+  "name": "perry",
+  "displayName": "Perry",
   "description": "Inline code intelligence showing references, Git history, tests, and ownership.",
   "version": "0.1.0",
   "publisher": "perry",
@@ -23,9 +23,9 @@
     "onLanguage:javascriptreact",
     "onLanguage:python",
     "onLanguage:go",
-    "onCommand:contextLens.refresh",
-    "onCommand:contextLens.showDetails",
-    "onCommand:contextLens.toggle"
+    "onCommand:perry.refresh",
+    "onCommand:perry.showDetails",
+    "onCommand:perry.toggle"
   ],
   "main": "./out/extension.js",
   "scripts": {
@@ -47,73 +47,68 @@
   "contributes": {
     "commands": [
       {
-        "command": "contextLens.refresh",
-        "title": "Context Lens: Refresh"
+        "command": "perry.refresh",
+        "title": "Perry: Refresh"
       },
       {
-        "command": "contextLens.showDetails",
-        "title": "Context Lens: Show Details"
+        "command": "perry.showDetails",
+        "title": "Perry: Show Details"
       },
       {
-        "command": "contextLens.toggle",
-        "title": "Context Lens: Toggle"
+        "command": "perry.toggle",
+        "title": "Perry: Toggle"
       }
     ],
     "configuration": {
-      "title": "Context Lens",
+      "title": "Perry",
       "properties": {
-        "contextLens.enabled": {
+        "perry.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable Context Lens inline annotations."
+          "description": "Enable Perry inline annotations."
         },
-        "contextLens.showInlineContext": {
+        "perry.showInlineContext": {
           "type": "boolean",
           "default": false,
           "description": "Deprecated. Inline decoration blocks are disabled because VS Code decorations do not reserve editor space."
         },
-        "contextLens.showDetailsLens": {
+        "perry.showDetailsLens": {
           "type": "boolean",
           "default": true,
           "description": "Show a non-overlapping CodeLens summary for opening the details panel."
         },
-        "contextLens.enableHover": {
+        "perry.enableHover": {
           "type": "boolean",
           "default": true,
-          "description": "Show a rich Context Lens hover card when hovering symbols."
+          "description": "Show a rich Perry hover card when hovering symbols."
         },
-        "contextLens.enableSymbolLinks": {
+        "perry.enableSymbolLinks": {
           "type": "boolean",
           "default": true,
           "description": "Make symbol names clickable with Ctrl/Cmd-click where VS Code document links are available."
         },
-        "contextLens.showGutterMarkers": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show a small Context Lens marker in the editor gutter next to annotated symbols."
-        },
-        "contextLens.maxSymbolsPerFile": {
+        "perry.maxSymbolsPerFile": {
           "type": "number",
           "default": 100,
           "minimum": 1,
           "description": "Maximum number of symbols to annotate in a single file."
         },
-        "contextLens.enableGit": {
+        "perry.enableGit": {
           "type": "boolean",
           "default": true,
           "description": "Include local Git blame or log context."
         },
-        "contextLens.enableReferences": {
+        "perry.enableReferences": {
           "type": "boolean",
           "default": true,
           "description": "Include reference counts from the active language server."
         },
-        "contextLens.enableTests": {
+        "perry.enableTests": {
           "type": "boolean",
           "default": true,
           "description": "Search workspace test files for related tests."
         },
-        "contextLens.enableOwners": {
+        "perry.enableOwners": {
           "type": "boolean",
           "default": true,
           "description": "Match files against local CODEOWNERS rules."

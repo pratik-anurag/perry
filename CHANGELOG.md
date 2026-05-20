@@ -2,7 +2,7 @@
 
 ## 0.1.0
 
-- Initial MVP of Perry - Context Lens.
+- Initial MVP of Perry.
 - Added CodeLens context for symbols in TypeScript, JavaScript, TSX, JSX, and Python.
 - Added local Git blame/log context, reference counts, related test discovery, CODEOWNERS matching, and a details webview.
 - Added lightweight unit tests for pure helper logic.

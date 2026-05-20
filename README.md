@@ -1,6 +1,6 @@
-# Perry - Context Lens
+# Perry
 
-Context Lens is a local-first VS Code extension that shows readable CodeLens context above meaningful symbols in supported source files. It helps answer who uses code, what it calls, who last touched it, which tests look related, and who likely owns the file.
+Perry is a local-first VS Code extension that shows readable CodeLens context above meaningful symbols in supported source files. It helps answer who uses code, what it calls, who last touched it, which tests look related, and who likely owns the file.
 
 Screenshot placeholder:
 
@@ -13,7 +13,7 @@ Screenshot placeholder:
 function placeOrder() {}
 ```
 
-The editor line above a symbol uses VS Code CodeLens, so it reserves space and does not overlap source text. A small gutter marker highlights annotated symbols. Hover a function, method, class, interface, or module to see the full comment-style context card with actions. Where VS Code document links are available, Ctrl/Cmd-click the symbol name to open the details panel.
+The editor line above a symbol uses VS Code CodeLens, so it reserves space and does not overlap source text. Hover a function, method, class, interface, or module to see the full comment-style context card with actions. Where VS Code document links are available, Ctrl/Cmd-click the symbol name to open the details panel.
 
 ## Supported Languages
 
@@ -35,27 +35,26 @@ No external services, API keys, AI integration, telemetry, or network calls are 
 
 ## Settings
 
-- `contextLens.enabled`: enable or disable all inline annotations. Default: `true`
-- `contextLens.showInlineContext`: deprecated. Inline decoration blocks are disabled because they do not reserve editor space. Default: `false`
-- `contextLens.showDetailsLens`: show the non-overlapping CodeLens summary. Default: `true`
-- `contextLens.enableHover`: show a rich hover card on supported symbols. Default: `true`
-- `contextLens.enableSymbolLinks`: make symbol names Ctrl/Cmd-clickable where VS Code document links are available. Default: `true`
-- `contextLens.showGutterMarkers`: show Context Lens markers in the editor gutter. Default: `true`
-- `contextLens.maxSymbolsPerFile`: maximum symbols per file. Default: `100`
-- `contextLens.enableGit`: include Git blame/log context. Default: `true`
-- `contextLens.enableReferences`: include language server reference counts. Default: `true`
-- `contextLens.enableTests`: search related local tests. Default: `true`
-- `contextLens.enableOwners`: match local CODEOWNERS rules. Default: `true`
+- `perry.enabled`: enable or disable all inline annotations. Default: `true`
+- `perry.showInlineContext`: deprecated. Inline decoration blocks are disabled because they do not reserve editor space. Default: `false`
+- `perry.showDetailsLens`: show the non-overlapping CodeLens summary. Default: `true`
+- `perry.enableHover`: show a rich hover card on supported symbols. Default: `true`
+- `perry.enableSymbolLinks`: make symbol names Ctrl/Cmd-clickable where VS Code document links are available. Default: `true`
+- `perry.maxSymbolsPerFile`: maximum symbols per file. Default: `100`
+- `perry.enableGit`: include Git blame/log context. Default: `true`
+- `perry.enableReferences`: include language server reference counts. Default: `true`
+- `perry.enableTests`: search related local tests. Default: `true`
+- `perry.enableOwners`: match local CODEOWNERS rules. Default: `true`
 
 ## Commands
 
-- `Context Lens: Refresh` (`contextLens.refresh`)
-- `Context Lens: Show Details` (`contextLens.showDetails`)
-- `Context Lens: Toggle` (`contextLens.toggle`)
+- `Perry: Refresh` (`perry.refresh`)
+- `Perry: Show Details` (`perry.showDetails`)
+- `Perry: Toggle` (`perry.toggle`)
 
 ## CODEOWNERS
 
-Context Lens looks for CODEOWNERS in:
+Perry looks for CODEOWNERS in:
 
 - `.github/CODEOWNERS`
 - `CODEOWNERS`

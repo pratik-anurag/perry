@@ -1,12 +1,12 @@
 import path from 'path';
 import * as vscode from 'vscode';
-import { formatContextBlock, getCommentPrefix } from './contextBlock';
-import { ContextLensProvider } from './contextLensProvider';
+import { formatContextBlock, getCommentPrefix } from './perryBlock';
+import { PerryProvider } from './perryProvider';
 import { OutputLogger, SymbolContext } from './types';
 
-export class ContextHoverProvider implements vscode.HoverProvider, vscode.DocumentLinkProvider {
+export class PerryHoverProvider implements vscode.HoverProvider, vscode.DocumentLinkProvider {
   public constructor(
-    private readonly provider: ContextLensProvider,
+    private readonly provider: PerryProvider,
     private readonly logger: OutputLogger
   ) {}
 
@@ -16,7 +16,7 @@ export class ContextHoverProvider implements vscode.HoverProvider, vscode.Docume
     token: vscode.CancellationToken
   ): Promise<vscode.Hover | undefined> {
     try {
-      const config = vscode.workspace.getConfiguration('contextLens');
+      const config = vscode.workspace.getConfiguration('perry');
       if (!config.get<boolean>('enabled', true) || !config.get<boolean>('enableHover', true)) {
         return undefined;
       }
@@ -38,7 +38,7 @@ export class ContextHoverProvider implements vscode.HoverProvider, vscode.Docume
     token: vscode.CancellationToken
   ): Promise<vscode.DocumentLink[]> {
     try {
-      const config = vscode.workspace.getConfiguration('contextLens');
+      const config = vscode.workspace.getConfiguration('perry');
       if (!config.get<boolean>('enabled', true) || !config.get<boolean>('enableSymbolLinks', true)) {
         return [];
       }
@@ -55,8 +55,8 @@ export class ContextHoverProvider implements vscode.HoverProvider, vscode.Docume
             return undefined;
           }
 
-          const link = new vscode.DocumentLink(nameRange, createCommandUri('contextLens.showDetails', context));
-          link.tooltip = 'Open Context Lens details';
+          const link = new vscode.DocumentLink(nameRange, createCommandUri('perry.showDetails', context));
+          link.tooltip = 'Open Perry details';
           return link;
         })
         .filter((link): link is vscode.DocumentLink => Boolean(link));
@@ -86,10 +86,10 @@ function buildHoverMarkdown(context: SymbolContext, languageId: string): vscode.
     ? context.tests.map((test) => path.basename(test.path)).join(', ')
     : 'none';
   const owner = context.owner.available && context.owner.owner ? context.owner.owner : 'unknown';
-  const detailsUri = createCommandUri('contextLens.showDetails', context);
-  const referencesUri = createCommandUri('contextLens.revealReferences', context);
+  const detailsUri = createCommandUri('perry.showDetails', context);
+  const referencesUri = createCommandUri('perry.revealReferences', context);
 
-  markdown.appendMarkdown(`### $(inspect) Context Lens: \`${escapeMarkdown(context.symbol.name)}\`\n\n`);
+  markdown.appendMarkdown(`### $(inspect) Perry: \`${escapeMarkdown(context.symbol.name)}\`\n\n`);
   markdown.appendMarkdown(
     `$(references) **${escapeMarkdown(references)} refs** · ` +
     `$(beaker) **${context.tests.length} tests** · ` +
@@ -113,7 +113,7 @@ function buildHoverMarkdown(context: SymbolContext, languageId: string): vscode.
   if (context.tests.length > 0) {
     markdown.appendMarkdown('\n\n**Tests**\n\n');
     for (const test of context.tests) {
-      const testUri = createCommandUri('contextLens.openTestFile', test.path);
+      const testUri = createCommandUri('perry.openTestFile', test.path);
       markdown.appendMarkdown(`- [${escapeMarkdown(path.basename(test.path))}](${testUri})\n`);
     }
   }

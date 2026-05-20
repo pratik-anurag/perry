@@ -12,7 +12,7 @@ interface SymbolCandidate {
   range: vscode.Range;
 }
 
-interface ContextLensProviderServices {
+interface PerryProviderServices {
   gitService: GitService;
   testDiscovery: TestDiscovery;
   codeownersService: CodeownersService;
@@ -28,13 +28,13 @@ const SUPPORTED_SYMBOL_KINDS = new Set<vscode.SymbolKind>([
   vscode.SymbolKind.Module
 ]);
 
-export class ContextLensProvider implements vscode.CodeLensProvider {
+export class PerryProvider implements vscode.CodeLensProvider {
   private readonly changeEmitter = new vscode.EventEmitter<void>();
   private readonly cache = new Map<string, Promise<SymbolContext[]>>();
 
   public readonly onDidChangeCodeLenses = this.changeEmitter.event;
 
-  public constructor(private readonly services: ContextLensProviderServices) {}
+  public constructor(private readonly services: PerryProviderServices) {}
 
   public async provideCodeLenses(
     document: vscode.TextDocument,
@@ -59,7 +59,7 @@ export class ContextLensProvider implements vscode.CodeLensProvider {
         );
         return new vscode.CodeLens(range, {
           title: formatCodeLensTitle(context),
-          command: 'contextLens.showDetails',
+          command: 'perry.showDetails',
           arguments: [context]
         });
       });
@@ -431,7 +431,7 @@ async function mapWithConcurrency<T, R>(
 }
 
 function getConfig(): vscode.WorkspaceConfiguration {
-  return vscode.workspace.getConfiguration('contextLens');
+  return vscode.workspace.getConfiguration('perry');
 }
 
 function stringifyError(error: unknown): string {

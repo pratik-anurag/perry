@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatContextBlock } from '../contextBlock';
+import { formatContextBlock } from '../perryBlock';
 import { SymbolContext } from '../types';
 
 test('context block renders the visible comment format', () => {
