@@ -8,3 +8,6 @@
 - Added lightweight unit tests for pure helper logic.
 - Added virtual comment-style inline context blocks above symbols.
 - Replaced overlapping virtual blocks with non-overlapping CodeLens summaries plus rich hover details.
+- Added command-only startup with `Perry: Start`, `Perry: Stop`, and `Perry: Toggle`.
+- Added diagnostics for startup timing and extension-host memory.
+- Refined the full details panel with a richer responsive layout.

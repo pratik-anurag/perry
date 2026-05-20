@@ -3,7 +3,8 @@
   "displayName": "Perry",
   "description": "Inline code intelligence showing references, Git history, tests, and ownership.",
   "version": "0.1.0",
-  "publisher": "perry",
+  "publisher": "kitarpgaruna",
+  "icon": "media/perry-icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -16,6 +17,18 @@
     "Programming Languages",
     "Other"
   ],
+  "keywords": [
+    "code intelligence",
+    "codelens",
+    "references",
+    "git",
+    "codeowners",
+    "tests"
+  ],
+  "galleryBanner": {
+    "color": "#1f2937",
+    "theme": "dark"
+  },
   "activationEvents": [
     "onCommand:perry.start",
     "onCommand:perry.stop",

@@ -2,7 +2,9 @@
 
 Perry is a local-first VS Code extension that shows readable CodeLens context above meaningful symbols in supported source files. It helps answer who uses code, what it calls, who last touched it, which tests look related, and who likely owns the file.
 
-Screenshot placeholder:
+Perry starts only when you ask it to. Run `Perry: Start` from the Command Palette to enable its CodeLens, hover, symbol links, local file watching, and details panel. Run `Perry: Stop` when you want it fully dormant again.
+
+Example context:
 
 ```text
 // Used by: CheckoutPage, OrderService
@@ -35,7 +37,7 @@ No external services, API keys, AI integration, telemetry, or network calls are 
 
 ## Settings
 
-- `perry.enabled`: enable or disable all inline annotations. Default: `true`
+- `perry.enabled`: enable or disable inline annotations after Perry has been manually started. Default: `true`
 - `perry.showInlineContext`: deprecated. Inline decoration blocks are disabled because they do not reserve editor space. Default: `false`
 - `perry.showDetailsLens`: show the non-overlapping CodeLens summary. Default: `true`
 - `perry.enableHover`: show a rich hover card on supported symbols. Default: `true`
@@ -48,9 +50,14 @@ No external services, API keys, AI integration, telemetry, or network calls are 
 
 ## Commands
 
+- `Perry: Start` (`perry.start`)
+- `Perry: Stop` (`perry.stop`)
 - `Perry: Refresh` (`perry.refresh`)
 - `Perry: Show Details` (`perry.showDetails`)
 - `Perry: Toggle` (`perry.toggle`)
+- `Perry: Show Diagnostics` (`perry.showDiagnostics`)
+
+`Perry: Show Diagnostics` reports command-layer activation time, the latest Perry start time, heap deltas, and current extension-host memory. VS Code runs extensions in a shared extension host, so memory values are process-level rather than exact Perry-only memory.
 
 ## CODEOWNERS
 
