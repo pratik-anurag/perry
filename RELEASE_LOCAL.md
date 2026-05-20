@@ -13,13 +13,13 @@ npm run release:local
 The generated VSIX filename follows this pattern:
 
 ```text
-perry-<version>.vsix
+perry-code-context-<version>.vsix
 ```
 
 For the current package version, expect:
 
 ```text
-perry-0.1.0.vsix
+perry-code-context-0.1.0.vsix
 ```
 
 ## Inspect Package Contents
@@ -35,7 +35,7 @@ npm run package:check
 Install with the VS Code CLI:
 
 ```sh
-code --install-extension perry-0.1.0.vsix
+code --install-extension perry-code-context-0.1.0.vsix
 ```
 
 Or install the latest generated VSIX in this directory:
@@ -61,19 +61,19 @@ The extension ID is usually:
 For this project:
 
 ```text
-perry.perry
+kitarpgaruna.perry-code-context
 ```
 
 Uninstall:
 
 ```sh
-code --uninstall-extension perry.perry
+code --uninstall-extension kitarpgaruna.perry-code-context
 ```
 
 Reinstall:
 
 ```sh
-code --install-extension perry-0.1.0.vsix
+code --install-extension perry-code-context-0.1.0.vsix
 ```
 
 ## Version Bumps

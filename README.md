@@ -1,6 +1,6 @@
-# Perry
+# Perry Code Context
 
-Perry is a local-first VS Code extension that shows readable CodeLens context above meaningful symbols in supported source files. It helps answer who uses code, what it calls, who last touched it, which tests look related, and who likely owns the file.
+Perry Code Context is a local-first VS Code extension that shows readable CodeLens context above meaningful symbols in supported source files. It helps answer who uses code, what it calls, who last touched it, which tests look related, and who likely owns the file.
 
 Perry starts only when you ask it to. Run `Perry: Start` from the Command Palette to enable its CodeLens, hover, symbol links, local file watching, and details panel. Run `Perry: Stop` when you want it fully dormant again.
 
