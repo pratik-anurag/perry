@@ -2,7 +2,7 @@
   "name": "perry-code-context",
   "displayName": "Perry Code Context",
   "description": "Inline code intelligence showing references, Git history, tests, and ownership.",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "kitarpgaruna",
   "icon": "media/perry-icon.png",
   "license": "MIT",
