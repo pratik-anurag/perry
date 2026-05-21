@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.5
+
+- Added clickable usage-site links in hover cards and the details panel.
+- Added structured usage-site tracking with source locations, deduping, and truncation when many call sites are found.
+- Combined language-server references with Go and Python text-scan results for better `Used By` coverage.
+- Improved call-site scanning to preserve character positions while ignoring strings and comments.
+- Added usage-site navigation validation so Perry only opens files inside the current workspace.
+
+## 0.1.4
+
+- Simplified the details panel into a lighter summary-and-sections layout.
+- Improved hover and reference behavior by using symbol selection ranges when available.
+- Added Go and Python fallback call-site scanning when the language server cannot provide references.
+- Improved `Used By` labels with file and line locations.
+- Added symbol-analysis tests for call-site detection.
+
+## 0.1.3
+
+- Bumped the extension package version to `0.1.3` for release.
+- No user-facing behavior changes from `0.1.2`.
+
 ## 0.1.2
 
 - Changed `Perry: Start`, `Perry: Stop`, and `Perry: Toggle` to use session state only instead of writing `.vscode/settings.json`.
