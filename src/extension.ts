@@ -355,57 +355,45 @@ function showDetailsPanel(context: SymbolContext): void {
 
 function buildDetailsHtml(context: SymbolContext): string {
   const references = context.references.available ? String(context.references.count) : 'unavailable';
-  const referencesMeta = context.references.available
-    ? context.references.count === 1 ? 'reference in workspace' : 'references in workspace'
-    : 'Language service unavailable';
   const usedBy = context.usedBy.available
     ? context.usedBy.symbols.length > 0 ? context.usedBy.symbols.join(', ') : 'none'
     : 'unavailable';
-  const usedByMeta = context.usedBy.available
-    ? context.usedBy.symbols.length === 1 ? 'caller detected' : 'callers detected'
-    : 'Caller scan unavailable';
   const calls = context.calls.symbols.length > 0
     ? context.calls.symbols.map((symbol) => `${symbol}()`).join(', ')
     : 'none';
-  const callsMeta = context.calls.symbols.length === 1 ? 'outgoing call' : 'outgoing calls';
   const gitAuthor = context.git.available ? context.git.author ?? 'unknown' : 'unavailable';
   const gitDate = context.git.available ? context.git.relativeDate ?? 'unknown' : 'unavailable';
   const owner = context.owner.available ? context.owner.owner ?? 'unknown' : 'unknown';
   const revealUri = createCommandUri('perry.revealReferences', context);
   const location = `${context.symbol.filePath}:${context.symbol.line}`;
-  const symbolInitial = context.symbol.name.trim().slice(0, 1).toUpperCase() || 'P';
-  const referenceTone = context.references.available ? 'accent' : 'warning';
-  const ownerTone = context.owner.available && context.owner.owner ? 'good' : 'muted';
-  const gitTone = context.git.available ? 'accent' : 'warning';
-  const testTone = context.tests.length > 0 ? 'good' : 'muted';
-  const referencesBadge = context.references.available ? `${references} refs` : 'References unavailable';
-  const ownerBadge = context.owner.available && context.owner.owner ? owner : 'No owner';
-  const ownerMeta = context.owner.available && context.owner.owner ? 'CODEOWNERS match' : 'No CODEOWNERS match';
-  const usedByPill = context.usedBy.available ? `${context.usedBy.symbols.length} ${usedByMeta}` : usedByMeta;
-  const testFileLabel = context.tests.length === 1 ? 'file' : 'files';
-  const usedByChips = context.usedBy.available
-    ? renderChips(context.usedBy.symbols, 'No callers found.')
-    : '<div class="muted">References unavailable.</div>';
-  const callChips = renderChips(context.calls.symbols.map((symbol) => `${symbol}()`), 'No calls detected.');
-  const tests = context.tests.length > 0
+  const usedByList = context.usedBy.available
+    ? renderList(context.usedBy.symbols, 'No callers found.')
+    : '<p class="empty">References unavailable.</p>';
+  const callList = renderList(context.calls.symbols.map((symbol) => `${symbol}()`), 'No calls detected.');
+  const testList = context.tests.length > 0
     ? context.tests
       .map((test) => {
         const commandUri = createOpenFileCommandUri(test.path);
-        return `<li><a class="test-link" href="${commandUri}"><span class="test-dot"></span><span>${escapeHtml(test.path)}</span></a></li>`;
+        return `<li><a href="${commandUri}">${escapeHtml(test.path)}</a></li>`;
       })
       .join('')
-    : '<li class="empty-row">No related tests found.</li>';
+    : '<li class="empty">No related tests found.</li>';
+  const summaryRows = [
+    ['References', references],
+    ['Used by', context.usedBy.available ? String(context.usedBy.symbols.length) : 'unavailable'],
+    ['Last changed', gitDate],
+    ['Owner', owner]
+  ];
   const detailRows = [
-    ['Symbol', context.symbol.name],
     ['Kind', context.symbol.kind],
     ['File', context.symbol.filePath],
     ['Line', String(context.symbol.line)],
-    ['Reference Count', references],
-    ['Used By', usedBy],
+    ['Reference count', references],
+    ['Used by', usedBy],
     ['Calls', calls],
-    ['Last Git Author', gitAuthor],
-    ['Last Git Date', gitDate],
-    ['CODEOWNERS Owner', owner]
+    ['Last Git author', gitAuthor],
+    ['Last Git date', gitDate],
+    ['CODEOWNERS owner', owner]
   ];
 
   return `<!DOCTYPE html>
@@ -758,77 +746,149 @@ function buildDetailsHtml(context: SymbolContext): string {
         padding-top: 3px;
       }
     }
+    body {
+      margin: 0;
+      line-height: 1.5;
+      padding: 0;
+    }
+    .shell {
+      max-width: 880px;
+      margin: 0;
+      padding: 22px;
+    }
+    header {
+      border-bottom: 1px solid var(--vscode-panel-border);
+      margin-bottom: 18px;
+      padding-bottom: 16px;
+    }
+    section {
+      border-top: 1px solid var(--vscode-panel-border);
+      padding: 16px 0;
+    }
+    h1 {
+      font-size: 1.45rem;
+      font-weight: 600;
+      line-height: 1.2;
+      margin: 2px 0 6px;
+    }
+    h2 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin: 0 0 10px;
+    }
+    .kicker,
+    .meta,
+    .label,
+    dt,
+    .empty {
+      color: var(--vscode-descriptionForeground);
+    }
+    .kicker {
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .meta {
+      font-family: var(--vscode-editor-font-family);
+      font-size: 0.9rem;
+      margin: 0;
+      word-break: break-word;
+    }
+    .summary {
+      display: grid;
+      gap: 12px 24px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-bottom: 2px;
+    }
+    .value {
+      font-weight: 600;
+      margin-top: 2px;
+      overflow-wrap: anywhere;
+    }
+    .button {
+      background: var(--vscode-button-secondaryBackground);
+      border: 1px solid var(--vscode-button-border, transparent);
+      border-radius: 4px;
+      color: var(--vscode-button-secondaryForeground);
+      font-weight: 400;
+      margin-top: 12px;
+      min-height: 28px;
+      padding: 4px 10px;
+    }
+    .button:hover {
+      background: var(--vscode-button-secondaryHoverBackground);
+    }
+    li {
+      overflow-wrap: anywhere;
+      padding: 3px 0;
+    }
+    dl {
+      display: grid;
+      gap: 8px 18px;
+      grid-template-columns: minmax(120px, 0.28fr) minmax(0, 1fr);
+      margin: 0;
+    }
+    dt,
+    dd {
+      border-bottom: 1px solid var(--vscode-panel-border);
+      padding: 9px 0;
+      overflow-wrap: anywhere;
+    }
+    dd {
+      margin: 0;
+    }
+    dt:nth-last-child(2),
+    dd:last-child {
+      border-bottom: 0;
+    }
+    @media (max-width: 560px) {
+      .summary,
+      dl {
+        grid-template-columns: 1fr;
+      }
+      dt {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+      dd {
+        padding-top: 3px;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="shell">
-  <div class="hero">
-    <div class="hero-main">
-      <div class="symbol-mark">${escapeHtml(symbolInitial)}</div>
-      <div class="hero-copy">
-        <div class="eyebrow">${escapeHtml(context.symbol.kind)}</div>
-        <h1>${escapeHtml(context.symbol.name)}</h1>
-        <div class="subtitle">${escapeHtml(location)}</div>
-      </div>
-    </div>
-    <div class="hero-footer">
-      <div class="badges">
-        <span class="badge ${context.references.available ? 'accent' : 'warning'}">${escapeHtml(referencesBadge)}</span>
-        <span class="badge ${context.git.available ? 'accent' : 'warning'}">${escapeHtml(gitDate)}</span>
-        <span class="badge ${ownerTone}">${escapeHtml(ownerBadge)}</span>
-      </div>
-      <div class="actions">
-        <a class="button" href="${revealUri}">Reveal References</a>
-      </div>
-    </div>
-  </div>
+    <header>
+      <div class="kicker">${escapeHtml(context.symbol.kind)}</div>
+      <h1>${escapeHtml(context.symbol.name)}</h1>
+      <p class="meta">${escapeHtml(location)}</p>
+      <a class="button" href="${revealUri}">Reveal References</a>
+    </header>
 
-  <div class="summary-grid">
-    <div class="metric ${referenceTone}"><div class="metric-label">References</div><div class="metric-value">${escapeHtml(references)}</div><div class="metric-meta">${escapeHtml(referencesMeta)}</div></div>
-    <div class="metric ${gitTone}"><div class="metric-label">Last Changed</div><div class="metric-value">${escapeHtml(gitDate)}</div><div class="metric-meta">${escapeHtml(gitAuthor)}</div></div>
-    <div class="metric ${ownerTone}"><div class="metric-label">Owner</div><div class="metric-value">${escapeHtml(owner)}</div><div class="metric-meta">${escapeHtml(ownerMeta)}</div></div>
-    <div class="metric ${testTone}"><div class="metric-label">Related Tests</div><div class="metric-value">${context.tests.length}</div><div class="metric-meta">${context.tests.length === 1 ? 'test file found' : 'test files found'}</div></div>
-  </div>
-
-  <div class="content-grid">
-    <div class="stack">
-      <section class="card">
-        <div class="card-header">
-          <h2>Used By</h2>
-          <span class="count-pill">${escapeHtml(usedByPill)}</span>
-        </div>
-        <div class="card-body">${usedByChips}</div>
-      </section>
-
-      <section class="card">
-        <div class="card-header">
-          <h2>Calls</h2>
-          <span class="count-pill">${context.calls.symbols.length} ${escapeHtml(callsMeta)}</span>
-        </div>
-        <div class="card-body">${callChips}</div>
-      </section>
-
-      <section class="card">
-        <div class="card-header">
-          <h2>Related Tests</h2>
-          <span class="count-pill">${context.tests.length} ${testFileLabel}</span>
-        </div>
-        <div class="card-body"><ul>${tests}</ul></div>
-      </section>
-    </div>
-
-    <section class="card">
-      <div class="card-header">
-        <h2>Details</h2>
-        <span class="count-pill">Source Snapshot</span>
-      </div>
-      <div class="card-body">
-        <div class="detail-grid">
-          ${detailRows.map(([label, value]) => `<div class="detail-label">${escapeHtml(label)}</div><div class="detail-value">${escapeHtml(value)}</div>`).join('')}
-        </div>
-      </div>
+    <section class="summary">
+      ${summaryRows.map(([label, value]) => `<div><div class="label">${escapeHtml(label)}</div><div class="value">${escapeHtml(value)}</div></div>`).join('')}
     </section>
-  </div>
+
+    <section>
+      <h2>Used By</h2>
+      ${usedByList}
+    </section>
+
+    <section>
+      <h2>Calls</h2>
+      ${callList}
+    </section>
+
+    <section>
+      <h2>Related Tests</h2>
+      <ul>${testList}</ul>
+    </section>
+
+    <section>
+      <h2>Details</h2>
+      <dl>
+        ${detailRows.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join('')}
+      </dl>
+    </section>
   </div>
 </body>
 </html>`;
@@ -838,7 +898,8 @@ async function revealReferences(context: SymbolContext): Promise<void> {
   const uri = vscode.Uri.parse(context.symbol.uri);
   const document = await vscode.workspace.openTextDocument(uri);
   const editor = await vscode.window.showTextDocument(document);
-  const position = new vscode.Position(context.symbol.range.start.line, context.symbol.range.start.character);
+  const range = context.symbol.selectionRange ?? context.symbol.range;
+  const position = new vscode.Position(range.start.line, range.start.character);
   editor.selection = new vscode.Selection(position, position);
   editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
   await vscode.commands.executeCommand('editor.action.referenceSearch.trigger');
@@ -852,12 +913,12 @@ function createCommandUri(command: string, argument: unknown): string {
   return `command:${command}?${encodeURIComponent(JSON.stringify([argument]))}`;
 }
 
-function renderChips(values: string[], emptyText: string): string {
+function renderList(values: string[], emptyText: string): string {
   if (values.length === 0) {
-    return `<div class="muted">${escapeHtml(emptyText)}</div>`;
+    return `<p class="empty">${escapeHtml(emptyText)}</p>`;
   }
 
-  return `<div class="chips">${values.map((value) => `<span class="chip">${escapeHtml(value)}</span>`).join('')}</div>`;
+  return `<ul>${values.map((value) => `<li>${escapeHtml(value)}</li>`).join('')}</ul>`;
 }
 
 function escapeHtml(value: string): string {
@@ -943,7 +1004,8 @@ function isContextSymbol(value: unknown): boolean {
     typeof symbol.uri === 'string' &&
     Number.isInteger(symbol.line) &&
     symbol.line > 0 &&
-    isRangeData(symbol.range)
+    isRangeData(symbol.range) &&
+    (symbol.selectionRange === undefined || isRangeData(symbol.selectionRange))
   );
 }
 

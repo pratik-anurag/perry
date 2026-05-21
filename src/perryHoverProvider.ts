@@ -124,6 +124,15 @@ function buildHoverMarkdown(context: SymbolContext, languageId: string): vscode.
 }
 
 function findSymbolNameRange(document: vscode.TextDocument, context: SymbolContext): vscode.Range | undefined {
+  if (context.symbol.selectionRange) {
+    return new vscode.Range(
+      context.symbol.selectionRange.start.line,
+      context.symbol.selectionRange.start.character,
+      context.symbol.selectionRange.end.line,
+      context.symbol.selectionRange.end.character
+    );
+  }
+
   const startLine = context.symbol.range.start.line;
   const endLine = Math.min(document.lineCount - 1, startLine + 3);
   const escapedName = escapeRegExp(context.symbol.name);
@@ -148,11 +157,12 @@ function findSymbolNameRange(document: vscode.TextDocument, context: SymbolConte
 }
 
 function toVscodeRange(context: SymbolContext): vscode.Range {
+  const range = context.symbol.selectionRange ?? context.symbol.range;
   return new vscode.Range(
-    context.symbol.range.start.line,
-    context.symbol.range.start.character,
-    context.symbol.range.end.line,
-    context.symbol.range.end.character
+    range.start.line,
+    range.start.character,
+    range.end.line,
+    range.end.character
   );
 }
 

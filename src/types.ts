@@ -15,6 +15,7 @@ export interface ContextSymbol {
   uri: string;
   line: number;
   range: RangeData;
+  selectionRange?: RangeData;
 }
 
 export interface ReferenceContext {

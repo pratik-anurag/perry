@@ -2,7 +2,7 @@ import path from 'path';
 import * as vscode from 'vscode';
 import { CodeownersService } from './codeowners';
 import { GitService } from './gitService';
-import { extractCallsFromSymbol } from './symbolAnalysis';
+import { extractCallsFromSymbol, getSymbolIdentifier, lineContainsCallToSymbol } from './symbolAnalysis';
 import { TestDiscovery } from './testDiscovery';
 import { ContextSymbol, OutputLogger, RangeData, SymbolContext } from './types';
 
@@ -10,6 +10,7 @@ interface SymbolCandidate {
   name: string;
   kind: vscode.SymbolKind;
   range: vscode.Range;
+  selectionRange: vscode.Range;
 }
 
 interface PerryProviderServices {
@@ -27,6 +28,8 @@ const SUPPORTED_SYMBOL_KINDS = new Set<vscode.SymbolKind>([
   vscode.SymbolKind.Interface,
   vscode.SymbolKind.Module
 ]);
+const MAX_REFERENCE_USAGE_SITES = 50;
+const MAX_TEXT_SCAN_FILES = 1000;
 
 export class PerryProvider implements vscode.CodeLensProvider {
   private readonly changeEmitter = new vscode.EventEmitter<void>();
@@ -101,8 +104,8 @@ export class PerryProvider implements vscode.CodeLensProvider {
   ): Promise<SymbolContext | undefined> {
     const contexts = await this.getDocumentContexts(document, token);
     return contexts
-      .filter((context) => toVscodeRange(context.symbol.range).contains(position))
-      .sort((left, right) => rangeDataSize(left.symbol.range) - rangeDataSize(right.symbol.range))[0];
+      .filter((context) => getSymbolSelectionRange(context).contains(position))
+      .sort((left, right) => rangeDataSize(left.symbol.selectionRange ?? left.symbol.range) - rangeDataSize(right.symbol.selectionRange ?? right.symbol.range))[0];
   }
 
   private deleteDocumentCache(uri: vscode.Uri): void {
@@ -173,23 +176,45 @@ export class PerryProvider implements vscode.CodeLensProvider {
       const references = await vscode.commands.executeCommand<vscode.Location[]>(
         'vscode.executeReferenceProvider',
         document.uri,
-        symbol.range.start
+        getReferencePosition(symbol)
       );
       if (!Array.isArray(references)) {
+        const fallbackUsedBy = await this.getTextScanUsedBySymbols(document, symbol, token);
+        if (fallbackUsedBy.length > 0) {
+          return {
+            references: { available: true, count: fallbackUsedBy.length },
+            usedBy: { available: true, symbols: fallbackUsedBy }
+          };
+        }
+
         return {
           references: { available: false, count: 0 },
           usedBy: { available: false, symbols: [] }
         };
       }
 
+      const usedBySymbols = await this.getUsedBySymbols(document, symbol, references, token);
+      const fallbackUsedBy = usedBySymbols.length === 0
+        ? await this.getTextScanUsedBySymbols(document, symbol, token)
+        : [];
+      const resolvedUsedBy = usedBySymbols.length > 0 ? usedBySymbols : fallbackUsedBy;
+
       return {
-        references: { available: true, count: references.length },
+        references: { available: true, count: Math.max(references.length, resolvedUsedBy.length) },
         usedBy: {
           available: true,
-          symbols: await this.getUsedBySymbols(document, symbol, references, token)
+          symbols: resolvedUsedBy
         }
       };
     } catch (error) {
+      const fallbackUsedBy = await this.getTextScanUsedBySymbols(document, symbol, token);
+      if (fallbackUsedBy.length > 0) {
+        return {
+          references: { available: true, count: fallbackUsedBy.length },
+          usedBy: { available: true, symbols: fallbackUsedBy }
+        };
+      }
+
       this.services.logger.appendLine(`Reference provider unavailable for ${symbol.name}: ${stringifyError(error)}`);
       return {
         references: { available: false, count: 0 },
@@ -204,14 +229,13 @@ export class PerryProvider implements vscode.CodeLensProvider {
     references: vscode.Location[],
     token: vscode.CancellationToken
   ): Promise<string[]> {
-    const seen = new Set<string>();
     const candidates = references
       .filter((reference) => !isInsideSymbol(document.uri, symbol.range, reference))
-      .slice(0, 40);
+      .slice(0, MAX_REFERENCE_USAGE_SITES);
 
-    await mapWithConcurrency(candidates, 4, async (reference) => {
-      if (token.isCancellationRequested || seen.size >= 5) {
-        return;
+    const labels = await mapWithConcurrency(candidates, 4, async (reference) => {
+      if (token.isCancellationRequested) {
+        return undefined;
       }
 
       try {
@@ -220,16 +244,72 @@ export class PerryProvider implements vscode.CodeLensProvider {
           : await vscode.workspace.openTextDocument(reference.uri);
         const symbols = await getDocumentSymbols(referenceDocument, token);
         const container = findInnermostSymbol(symbols, reference.range.start);
-        if (!container || container.name === symbol.name || seen.has(container.name)) {
-          return;
-        }
-        seen.add(container.name);
+        return formatUsageSiteLabel(referenceDocument, reference.range.start, container);
       } catch (error) {
         this.services.logger.appendLine(`Unable to resolve reference owner for ${symbol.name}: ${stringifyError(error)}`);
+        return undefined;
       }
     });
 
-    return Array.from(seen).slice(0, 5);
+    return uniqueStrings(labels.filter((label): label is string => Boolean(label)));
+  }
+
+  private async getTextScanUsedBySymbols(
+    document: vscode.TextDocument,
+    symbol: SymbolCandidate,
+    token: vscode.CancellationToken
+  ): Promise<string[]> {
+    if (!shouldUseTextScan(document)) {
+      return [];
+    }
+
+    const identifier = getSymbolIdentifier(symbol.name);
+    if (!identifier) {
+      return [];
+    }
+
+    try {
+      const includePattern = document.languageId === 'go' ? '**/*.go' : '**/*.py';
+      const files = (await vscode.workspace.findFiles(includePattern, undefined, MAX_TEXT_SCAN_FILES))
+        .filter((uri) => !isIgnoredScanPath(uri.fsPath));
+      const labels = await mapWithConcurrency(files, 6, async (uri) => {
+        if (token.isCancellationRequested) {
+          return [];
+        }
+
+        const referenceDocument = uri.toString() === document.uri.toString()
+          ? document
+          : await vscode.workspace.openTextDocument(uri);
+        const matches: string[] = [];
+        const symbols = await getDocumentSymbols(referenceDocument, token);
+
+        for (let lineNumber = 0; lineNumber < referenceDocument.lineCount; lineNumber += 1) {
+          if (matches.length >= MAX_REFERENCE_USAGE_SITES || token.isCancellationRequested) {
+            break;
+          }
+
+          const lineText = referenceDocument.lineAt(lineNumber).text;
+          if (!lineContainsCallToSymbol(lineText, identifier, document.languageId)) {
+            continue;
+          }
+
+          const position = new vscode.Position(lineNumber, 0);
+          if (isInsideRange(referenceDocument.uri, symbol.range, document.uri, position)) {
+            continue;
+          }
+
+          const container = findInnermostSymbol(symbols, position);
+          matches.push(formatUsageSiteLabel(referenceDocument, position, container));
+        }
+
+        return matches;
+      });
+
+      return uniqueStrings(labels.flat()).slice(0, MAX_REFERENCE_USAGE_SITES);
+    } catch (error) {
+      this.services.logger.appendLine(`Text call-site scan failed for ${symbol.name}: ${stringifyError(error)}`);
+      return [];
+    }
   }
 
   private async getGitContext(document: vscode.TextDocument, symbol: SymbolCandidate): Promise<SymbolContext['git']> {
@@ -306,8 +386,67 @@ function humanizeOwner(owner: string): string {
     .join(', ');
 }
 
+function getReferencePosition(symbol: SymbolCandidate): vscode.Position {
+  const range = symbol.selectionRange;
+  if (range.start.line !== range.end.line || range.start.character >= range.end.character) {
+    return range.start;
+  }
+
+  return new vscode.Position(
+    range.start.line,
+    range.start.character + Math.floor((range.end.character - range.start.character) / 2)
+  );
+}
+
+function getSymbolSelectionRange(context: SymbolContext): vscode.Range {
+  return toVscodeRange(context.symbol.selectionRange ?? context.symbol.range);
+}
+
+function formatUsageSiteLabel(
+  document: vscode.TextDocument,
+  position: vscode.Position,
+  container: SymbolCandidate | undefined
+): string {
+  const relativePath = vscode.workspace.asRelativePath(document.uri, false);
+  const location = `${relativePath}:${position.line + 1}`;
+  return container ? `${container.name} (${location})` : location;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const value of values) {
+    if (seen.has(value)) {
+      continue;
+    }
+
+    seen.add(value);
+    unique.push(value);
+  }
+  return unique;
+}
+
+function shouldUseTextScan(document: vscode.TextDocument): boolean {
+  return document.uri.scheme === 'file' && (document.languageId === 'go' || document.languageId === 'python');
+}
+
+function isIgnoredScanPath(filePath: string): boolean {
+  return filePath
+    .split(/[\\/]+/)
+    .some((part) => ['.git', 'node_modules', 'dist', 'out', 'build', '.venv', 'venv', '__pycache__'].includes(part));
+}
+
 function isInsideSymbol(sourceUri: vscode.Uri, symbolRange: vscode.Range, reference: vscode.Location): boolean {
   return reference.uri.toString() === sourceUri.toString() && symbolRange.contains(reference.range.start);
+}
+
+function isInsideRange(
+  referenceUri: vscode.Uri,
+  symbolRange: vscode.Range,
+  sourceUri: vscode.Uri,
+  position: vscode.Position
+): boolean {
+  return referenceUri.toString() === sourceUri.toString() && symbolRange.contains(position);
 }
 
 function findInnermostSymbol(symbols: SymbolCandidate[], position: vscode.Position): SymbolCandidate | undefined {
@@ -333,13 +472,13 @@ async function getDocumentSymbols(
       return [];
     }
 
-    return flattenSymbols(symbols);
+    return flattenSymbols(document, symbols);
   } catch {
     return [];
   }
 }
 
-function flattenSymbols(symbols: Array<vscode.DocumentSymbol | vscode.SymbolInformation>): SymbolCandidate[] {
+function flattenSymbols(document: vscode.TextDocument, symbols: Array<vscode.DocumentSymbol | vscode.SymbolInformation>): SymbolCandidate[] {
   const flattened: SymbolCandidate[] = [];
   for (const symbol of symbols) {
     if (isDocumentSymbol(symbol)) {
@@ -351,7 +490,8 @@ function flattenSymbols(symbols: Array<vscode.DocumentSymbol | vscode.SymbolInfo
       flattened.push({
         name: symbol.name,
         kind: symbol.kind,
-        range: symbol.location.range
+        range: symbol.location.range,
+        selectionRange: findSymbolNameRange(document, symbol.location.range, symbol.name) ?? symbol.location.range
       });
     }
   }
@@ -363,7 +503,8 @@ function collectDocumentSymbol(symbol: vscode.DocumentSymbol, target: SymbolCand
     target.push({
       name: symbol.name,
       kind: symbol.kind,
-      range: symbol.range
+      range: symbol.range,
+      selectionRange: symbol.selectionRange
     });
   }
 
@@ -376,6 +517,36 @@ function isDocumentSymbol(symbol: vscode.DocumentSymbol | vscode.SymbolInformati
   return 'children' in symbol && Array.isArray(symbol.children);
 }
 
+function findSymbolNameRange(
+  document: vscode.TextDocument,
+  range: vscode.Range,
+  symbolName: string
+): vscode.Range | undefined {
+  const identifier = getSymbolIdentifier(symbolName);
+  if (!identifier) {
+    return undefined;
+  }
+
+  const namePattern = new RegExp(`\\b${escapeRegExp(identifier)}\\b`);
+  const endLine = Math.min(document.lineCount - 1, range.start.line + 5);
+  for (let lineNumber = range.start.line; lineNumber <= endLine; lineNumber += 1) {
+    const lineText = document.lineAt(lineNumber).text;
+    const match = namePattern.exec(lineText);
+    if (!match) {
+      continue;
+    }
+
+    return new vscode.Range(
+      lineNumber,
+      match.index,
+      lineNumber,
+      match.index + identifier.length
+    );
+  }
+
+  return undefined;
+}
+
 function toContextSymbol(document: vscode.TextDocument, symbol: SymbolCandidate): ContextSymbol {
   return {
     name: symbol.name,
@@ -383,7 +554,8 @@ function toContextSymbol(document: vscode.TextDocument, symbol: SymbolCandidate)
     filePath: document.uri.fsPath,
     uri: document.uri.toString(),
     line: symbol.range.start.line + 1,
-    range: toRangeData(symbol.range)
+    range: toRangeData(symbol.range),
+    selectionRange: toRangeData(symbol.selectionRange)
   };
 }
 
@@ -436,4 +608,8 @@ function getConfig(): vscode.WorkspaceConfiguration {
 
 function stringifyError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[|\\{}()[\]^$+?.]/g, '\\$&');
 }
