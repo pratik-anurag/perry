@@ -2,7 +2,7 @@
   "name": "perry-code-context",
   "displayName": "Perry Code Context",
   "description": "Inline code intelligence showing references, Git history, tests, and ownership.",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "kitarpgaruna",
   "icon": "media/perry-icon.png",
   "license": "MIT",
@@ -43,7 +43,8 @@
     "onCommand:perry.toggle",
     "onCommand:perry.showDiagnostics",
     "onCommand:perry.revealReferences",
-    "onCommand:perry.openTestFile"
+    "onCommand:perry.openTestFile",
+    "onCommand:perry.openUsageSite"
   ],
   "main": "./out/extension.js",
   "scripts": {

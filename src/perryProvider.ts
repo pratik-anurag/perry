@@ -2,9 +2,16 @@ import path from 'path';
 import * as vscode from 'vscode';
 import { CodeownersService } from './codeowners';
 import { GitService } from './gitService';
-import { extractCallsFromSymbol, getSymbolIdentifier, lineContainsCallToSymbol } from './symbolAnalysis';
+import { extractCallsFromSymbol, findCallCharactersInLine, getSymbolIdentifier } from './symbolAnalysis';
 import { TestDiscovery } from './testDiscovery';
-import { ContextSymbol, OutputLogger, RangeData, SymbolContext } from './types';
+import { ContextSymbol, OutputLogger, RangeData, SymbolContext, UsageContext, UsageSite } from './types';
+import {
+  dedupeUsageSites,
+  formatUsageSiteLabel,
+  isPositionInsideRange,
+  UsageSiteCollection,
+  usageSitesToSymbols
+} from './usageSites';
 
 interface SymbolCandidate {
   name: string;
@@ -34,6 +41,7 @@ const MAX_TEXT_SCAN_FILES = 1000;
 export class PerryProvider implements vscode.CodeLensProvider {
   private readonly changeEmitter = new vscode.EventEmitter<void>();
   private readonly cache = new Map<string, Promise<SymbolContext[]>>();
+  private readonly scanFileCache = new Map<string, Promise<vscode.Uri[]>>();
 
   public readonly onDidChangeCodeLenses = this.changeEmitter.event;
 
@@ -74,6 +82,7 @@ export class PerryProvider implements vscode.CodeLensProvider {
 
   public clearCache(): void {
     this.cache.clear();
+    this.scanFileCache.clear();
     this.changeEmitter.fire();
   }
 
@@ -179,11 +188,11 @@ export class PerryProvider implements vscode.CodeLensProvider {
         getReferencePosition(symbol)
       );
       if (!Array.isArray(references)) {
-        const fallbackUsedBy = await this.getTextScanUsedBySymbols(document, symbol, token);
-        if (fallbackUsedBy.length > 0) {
+        const fallbackUsedBy = await this.getTextScanUsageSites(document, symbol, token);
+        if (fallbackUsedBy.sites.length > 0) {
           return {
-            references: { available: true, count: fallbackUsedBy.length },
-            usedBy: { available: true, symbols: fallbackUsedBy }
+            references: { available: true, count: fallbackUsedBy.sites.length },
+            usedBy: buildUsageContext(fallbackUsedBy)
           };
         }
 
@@ -193,25 +202,27 @@ export class PerryProvider implements vscode.CodeLensProvider {
         };
       }
 
-      const usedBySymbols = await this.getUsedBySymbols(document, symbol, references, token);
-      const fallbackUsedBy = usedBySymbols.length === 0
-        ? await this.getTextScanUsedBySymbols(document, symbol, token)
-        : [];
-      const resolvedUsedBy = usedBySymbols.length > 0 ? usedBySymbols : fallbackUsedBy;
+      const referenceSites = await this.getReferenceUsageSites(document, symbol, references, token);
+      const scanSites = await this.getTextScanUsageSites(document, symbol, token);
+      const usageSites = dedupeUsageSites(
+        [...referenceSites.sites, ...scanSites.sites],
+        MAX_REFERENCE_USAGE_SITES
+      );
+      const resolvedUsedBy = {
+        sites: usageSites.sites,
+        truncated: referenceSites.truncated || scanSites.truncated || usageSites.truncated
+      };
 
       return {
-        references: { available: true, count: Math.max(references.length, resolvedUsedBy.length) },
-        usedBy: {
-          available: true,
-          symbols: resolvedUsedBy
-        }
+        references: { available: true, count: Math.max(references.length, resolvedUsedBy.sites.length) },
+        usedBy: buildUsageContext(resolvedUsedBy)
       };
     } catch (error) {
-      const fallbackUsedBy = await this.getTextScanUsedBySymbols(document, symbol, token);
-      if (fallbackUsedBy.length > 0) {
+      const fallbackUsedBy = await this.getTextScanUsageSites(document, symbol, token);
+      if (fallbackUsedBy.sites.length > 0) {
         return {
-          references: { available: true, count: fallbackUsedBy.length },
-          usedBy: { available: true, symbols: fallbackUsedBy }
+          references: { available: true, count: fallbackUsedBy.sites.length },
+          usedBy: buildUsageContext(fallbackUsedBy)
         };
       }
 
@@ -223,17 +234,17 @@ export class PerryProvider implements vscode.CodeLensProvider {
     }
   }
 
-  private async getUsedBySymbols(
+  private async getReferenceUsageSites(
     document: vscode.TextDocument,
     symbol: SymbolCandidate,
     references: vscode.Location[],
     token: vscode.CancellationToken
-  ): Promise<string[]> {
+  ): Promise<UsageSiteCollection> {
     const candidates = references
       .filter((reference) => !isInsideSymbol(document.uri, symbol.range, reference))
       .slice(0, MAX_REFERENCE_USAGE_SITES);
 
-    const labels = await mapWithConcurrency(candidates, 4, async (reference) => {
+    const sites = await mapWithConcurrency(candidates, 4, async (reference) => {
       if (token.isCancellationRequested) {
         return undefined;
       }
@@ -244,72 +255,103 @@ export class PerryProvider implements vscode.CodeLensProvider {
           : await vscode.workspace.openTextDocument(reference.uri);
         const symbols = await getDocumentSymbols(referenceDocument, token);
         const container = findInnermostSymbol(symbols, reference.range.start);
-        return formatUsageSiteLabel(referenceDocument, reference.range.start, container);
+        return buildUsageSite(referenceDocument, reference.range.start, container, 'language-server');
       } catch (error) {
         this.services.logger.appendLine(`Unable to resolve reference owner for ${symbol.name}: ${stringifyError(error)}`);
         return undefined;
       }
     });
 
-    return uniqueStrings(labels.filter((label): label is string => Boolean(label)));
+    const collection = dedupeUsageSites(
+      sites.filter((site): site is UsageSite => Boolean(site)),
+      MAX_REFERENCE_USAGE_SITES
+    );
+    return {
+      sites: collection.sites,
+      truncated: references.length > candidates.length || collection.truncated
+    };
   }
 
-  private async getTextScanUsedBySymbols(
+  private async getTextScanUsageSites(
     document: vscode.TextDocument,
     symbol: SymbolCandidate,
     token: vscode.CancellationToken
-  ): Promise<string[]> {
+  ): Promise<UsageSiteCollection> {
     if (!shouldUseTextScan(document)) {
-      return [];
+      return { sites: [], truncated: false };
     }
 
     const identifier = getSymbolIdentifier(symbol.name);
     if (!identifier) {
-      return [];
+      return { sites: [], truncated: false };
     }
 
     try {
-      const includePattern = document.languageId === 'go' ? '**/*.go' : '**/*.py';
-      const files = (await vscode.workspace.findFiles(includePattern, undefined, MAX_TEXT_SCAN_FILES))
-        .filter((uri) => !isIgnoredScanPath(uri.fsPath));
-      const labels = await mapWithConcurrency(files, 6, async (uri) => {
+      const files = await this.getTextScanFiles(document.languageId, token);
+      const collections = await mapWithConcurrency(files, 6, async (uri) => {
         if (token.isCancellationRequested) {
-          return [];
+          return { sites: [], truncated: false };
         }
 
         const referenceDocument = uri.toString() === document.uri.toString()
           ? document
           : await vscode.workspace.openTextDocument(uri);
-        const matches: string[] = [];
+        const matches: UsageSite[] = [];
+        let truncated = false;
         const symbols = await getDocumentSymbols(referenceDocument, token);
 
         for (let lineNumber = 0; lineNumber < referenceDocument.lineCount; lineNumber += 1) {
           if (matches.length >= MAX_REFERENCE_USAGE_SITES || token.isCancellationRequested) {
+            truncated = matches.length >= MAX_REFERENCE_USAGE_SITES;
             break;
           }
 
           const lineText = referenceDocument.lineAt(lineNumber).text;
-          if (!lineContainsCallToSymbol(lineText, identifier, document.languageId)) {
-            continue;
-          }
+          const callCharacters = findCallCharactersInLine(lineText, identifier, document.languageId);
+          for (const character of callCharacters) {
+            if (matches.length >= MAX_REFERENCE_USAGE_SITES || token.isCancellationRequested) {
+              truncated = matches.length >= MAX_REFERENCE_USAGE_SITES;
+              break;
+            }
 
-          const position = new vscode.Position(lineNumber, 0);
-          if (isInsideRange(referenceDocument.uri, symbol.range, document.uri, position)) {
-            continue;
-          }
+            const position = new vscode.Position(lineNumber, character);
+            if (isInsideRange(referenceDocument.uri, symbol.range, document.uri, position)) {
+              continue;
+            }
 
-          const container = findInnermostSymbol(symbols, position);
-          matches.push(formatUsageSiteLabel(referenceDocument, position, container));
+            const container = findInnermostSymbol(symbols, position);
+            matches.push(buildUsageSite(referenceDocument, position, container, 'text-scan'));
+          }
         }
 
-        return matches;
+        return { sites: matches, truncated };
       });
 
-      return uniqueStrings(labels.flat()).slice(0, MAX_REFERENCE_USAGE_SITES);
+      const collection = dedupeUsageSites(
+        collections.flatMap((item) => item.sites),
+        MAX_REFERENCE_USAGE_SITES
+      );
+      return {
+        sites: collection.sites,
+        truncated: collections.some((item) => item.truncated) || collection.truncated
+      };
     } catch (error) {
       this.services.logger.appendLine(`Text call-site scan failed for ${symbol.name}: ${stringifyError(error)}`);
-      return [];
+      return { sites: [], truncated: false };
     }
+  }
+
+  private getTextScanFiles(languageId: string, token: vscode.CancellationToken): Promise<vscode.Uri[]> {
+    const cached = this.scanFileCache.get(languageId);
+    if (cached) {
+      return cached;
+    }
+
+    const includePattern = languageId === 'go' ? '**/*.go' : '**/*.py';
+    const promise = Promise.resolve(vscode.workspace.findFiles(includePattern, undefined, MAX_TEXT_SCAN_FILES, token))
+      .then((files) => files.filter((uri) => !isIgnoredScanPath(uri.fsPath)));
+    this.scanFileCache.set(languageId, promise);
+    return promise;
   }
 
   private async getGitContext(document: vscode.TextDocument, symbol: SymbolCandidate): Promise<SymbolContext['git']> {
@@ -402,28 +444,33 @@ function getSymbolSelectionRange(context: SymbolContext): vscode.Range {
   return toVscodeRange(context.symbol.selectionRange ?? context.symbol.range);
 }
 
-function formatUsageSiteLabel(
-  document: vscode.TextDocument,
-  position: vscode.Position,
-  container: SymbolCandidate | undefined
-): string {
-  const relativePath = vscode.workspace.asRelativePath(document.uri, false);
-  const location = `${relativePath}:${position.line + 1}`;
-  return container ? `${container.name} (${location})` : location;
+function buildUsageContext(collection: UsageSiteCollection): UsageContext {
+  return {
+    available: true,
+    symbols: usageSitesToSymbols(collection.sites),
+    sites: collection.sites,
+    truncated: collection.truncated
+  };
 }
 
-function uniqueStrings(values: string[]): string[] {
-  const seen = new Set<string>();
-  const unique: string[] = [];
-  for (const value of values) {
-    if (seen.has(value)) {
-      continue;
-    }
-
-    seen.add(value);
-    unique.push(value);
-  }
-  return unique;
+function buildUsageSite(
+  document: vscode.TextDocument,
+  position: vscode.Position,
+  container: SymbolCandidate | undefined,
+  source: UsageSite['source']
+): UsageSite {
+  const relativePath = vscode.workspace.asRelativePath(document.uri, false);
+  const location = `${relativePath}:${position.line + 1}`;
+  const containerName = container?.name;
+  return {
+    label: formatUsageSiteLabel(location, containerName),
+    uri: document.uri.toString(),
+    path: document.uri.fsPath,
+    line: position.line + 1,
+    character: position.character,
+    containerName,
+    source
+  };
 }
 
 function shouldUseTextScan(document: vscode.TextDocument): boolean {
@@ -446,7 +493,8 @@ function isInsideRange(
   sourceUri: vscode.Uri,
   position: vscode.Position
 ): boolean {
-  return referenceUri.toString() === sourceUri.toString() && symbolRange.contains(position);
+  return referenceUri.toString() === sourceUri.toString() &&
+    isPositionInsideRange(toRangeData(symbolRange), position.line, position.character);
 }
 
 function findInnermostSymbol(symbols: SymbolCandidate[], position: vscode.Position): SymbolCandidate | undefined {

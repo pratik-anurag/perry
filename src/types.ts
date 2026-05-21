@@ -26,6 +26,18 @@ export interface ReferenceContext {
 export interface UsageContext {
   available: boolean;
   symbols: string[];
+  sites?: UsageSite[];
+  truncated?: boolean;
+}
+
+export interface UsageSite {
+  label: string;
+  uri: string;
+  path: string;
+  line: number;
+  character: number;
+  containerName?: string;
+  source: 'language-server' | 'text-scan';
 }
 
 export interface CallsContext {

@@ -70,7 +70,7 @@ export class PerryHoverProvider implements vscode.HoverProvider, vscode.Document
 function buildHoverMarkdown(context: SymbolContext, languageId: string): vscode.MarkdownString {
   const markdown = new vscode.MarkdownString(undefined, true);
   markdown.isTrusted = {
-    enabledCommands: ['perry.showDetails', 'perry.revealReferences', 'perry.openTestFile']
+    enabledCommands: ['perry.showDetails', 'perry.revealReferences', 'perry.openTestFile', 'perry.openUsageSite']
   };
   markdown.supportThemeIcons = true;
 
@@ -111,6 +111,17 @@ function buildHoverMarkdown(context: SymbolContext, languageId: string): vscode.
   markdown.appendMarkdown(`[$(open-preview) Open details](${detailsUri})`);
   markdown.appendMarkdown(' &nbsp; ');
   markdown.appendMarkdown(`[$(references) Reveal references](${referencesUri})`);
+
+  if (context.usedBy.sites && context.usedBy.sites.length > 0) {
+    markdown.appendMarkdown('\n\n**Used By**\n\n');
+    for (const site of context.usedBy.sites.slice(0, 5)) {
+      const siteUri = createCommandUri('perry.openUsageSite', site);
+      markdown.appendMarkdown(`- [${escapeMarkdown(site.label)}](${siteUri})\n`);
+    }
+    if (context.usedBy.sites.length > 5 || context.usedBy.truncated) {
+      markdown.appendMarkdown(`- ${escapeMarkdown('Open details for more usage sites.')}\n`);
+    }
+  }
 
   if (context.tests.length > 0) {
     markdown.appendMarkdown('\n\n**Tests**\n\n');

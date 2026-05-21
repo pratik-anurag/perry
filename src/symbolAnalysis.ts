@@ -59,17 +59,33 @@ export function extractCallsFromSymbol(document: vscode.TextDocument, range: vsc
 }
 
 export function lineContainsCallToSymbol(lineText: string, symbolName: string, languageId: string): boolean {
+  return findCallCharactersInLine(lineText, symbolName, languageId).length > 0;
+}
+
+export function findCallCharactersInLine(lineText: string, symbolName: string, languageId: string): number[] {
   const identifier = getSymbolIdentifier(symbolName);
   if (!identifier) {
-    return false;
+    return [];
   }
 
-  const code = stripLineComments(stripStringLiterals(lineText), languageId);
+  const code = sanitizeLineForCallScan(lineText, languageId);
   if (isDefinitionLine(code, identifier, languageId)) {
-    return false;
+    return [];
   }
 
-  return new RegExp(`(?:\\b|\\.)${escapeRegExp(identifier)}\\s*\\(`).test(code);
+  const callCharacters: number[] = [];
+  const callPattern = new RegExp(`(?<![A-Za-z0-9_$])${escapeRegExp(identifier)}\\s*\\(`, 'g');
+
+  for (;;) {
+    const match = callPattern.exec(code);
+    if (!match) {
+      break;
+    }
+
+    callCharacters.push(match.index);
+  }
+
+  return callCharacters;
 }
 
 export function getSymbolIdentifier(symbolName: string): string {
@@ -93,20 +109,37 @@ function stripCommentsAndStrings(value: string): string {
     .replace(/(["'`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g, '');
 }
 
+function sanitizeLineForCallScan(value: string, languageId: string): string {
+  return stripLineComments(stripInlineBlockComments(stripStringLiterals(value)), languageId);
+}
+
 function stripStringLiterals(value: string): string {
-  return value.replace(/(["'`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g, '');
+  return value.replace(/(["'`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g, (match) => ' '.repeat(match.length));
+}
+
+function stripInlineBlockComments(value: string): string {
+  return value.replace(/\/\*.*?\*\//g, (match) => ' '.repeat(match.length));
 }
 
 function stripLineComments(value: string, languageId: string): string {
   if (languageId === 'python') {
-    return value.replace(/#.*$/, '');
+    return replaceTrailingComment(value, '#');
   }
 
   if (languageId === 'go') {
-    return value.replace(/\/\/.*$/, '');
+    return replaceTrailingComment(value, '//');
   }
 
   return value;
+}
+
+function replaceTrailingComment(value: string, marker: string): string {
+  const markerIndex = value.indexOf(marker);
+  if (markerIndex < 0) {
+    return value;
+  }
+
+  return `${value.slice(0, markerIndex)}${' '.repeat(value.length - markerIndex)}`;
 }
 
 function isDefinitionLine(value: string, identifier: string, languageId: string): boolean {

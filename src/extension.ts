@@ -5,7 +5,7 @@ import { PerryHoverProvider } from './perryHoverProvider';
 import { PerryProvider } from './perryProvider';
 import { GitService } from './gitService';
 import { TestDiscovery } from './testDiscovery';
-import { SymbolContext } from './types';
+import { SymbolContext, UsageSite } from './types';
 
 interface PerryRuntime {
   output: vscode.OutputChannel;
@@ -48,7 +48,8 @@ const watcherDebounceMs = 250;
 const perryCommandAllowlist = [
   'perry.showDetails',
   'perry.revealReferences',
-  'perry.openTestFile'
+  'perry.openTestFile',
+  'perry.openUsageSite'
 ] as const;
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -140,6 +141,17 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
       await vscode.window.showTextDocument(document, vscode.ViewColumn.Active);
+    }),
+    vscode.commands.registerCommand('perry.openUsageSite', async (site?: UsageSite) => {
+      const currentRuntime = getRuntime();
+      if (!currentRuntime.started || !vscode.workspace.isTrusted || !isUsageSite(site)) {
+        return;
+      }
+      if (!isWorkspaceUsageSite(site, currentRuntime.workspaceRoots)) {
+        vscode.window.showWarningMessage('Perry only opens usage sites from the current workspace.');
+        return;
+      }
+      await openUsageSite(site);
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       const currentRuntime = getRuntime();
@@ -367,7 +379,7 @@ function buildDetailsHtml(context: SymbolContext): string {
   const revealUri = createCommandUri('perry.revealReferences', context);
   const location = `${context.symbol.filePath}:${context.symbol.line}`;
   const usedByList = context.usedBy.available
-    ? renderList(context.usedBy.symbols, 'No callers found.')
+    ? renderUsageSiteList(context.usedBy.sites, context.usedBy.symbols, context.usedBy.truncated)
     : '<p class="empty">References unavailable.</p>';
   const callList = renderList(context.calls.symbols.map((symbol) => `${symbol}()`), 'No calls detected.');
   const testList = context.tests.length > 0
@@ -905,12 +917,42 @@ async function revealReferences(context: SymbolContext): Promise<void> {
   await vscode.commands.executeCommand('editor.action.referenceSearch.trigger');
 }
 
+async function openUsageSite(site: UsageSite): Promise<void> {
+  const uri = vscode.Uri.parse(site.uri);
+  const document = await vscode.workspace.openTextDocument(uri);
+  const editor = await vscode.window.showTextDocument(document, vscode.ViewColumn.Active);
+  const lineNumber = Math.min(site.line - 1, Math.max(document.lineCount - 1, 0));
+  const line = document.lineAt(lineNumber);
+  const character = Math.min(site.character, line.range.end.character);
+  const position = new vscode.Position(lineNumber, character);
+  editor.selection = new vscode.Selection(position, position);
+  editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+}
+
 function createOpenFileCommandUri(filePath: string): string {
   return createCommandUri('perry.openTestFile', filePath);
 }
 
+function createUsageSiteCommandUri(site: UsageSite): string {
+  return createCommandUri('perry.openUsageSite', site);
+}
+
 function createCommandUri(command: string, argument: unknown): string {
   return `command:${command}?${encodeURIComponent(JSON.stringify([argument]))}`;
+}
+
+function renderUsageSiteList(sites: UsageSite[] | undefined, fallbackSymbols: string[], truncated: boolean | undefined): string {
+  if (!sites || sites.length === 0) {
+    return renderList(fallbackSymbols, 'No callers found.');
+  }
+
+  const rows = sites
+    .map((site) => `<li><a href="${createUsageSiteCommandUri(site)}">${escapeHtml(site.label)}</a></li>`)
+    .join('');
+  const truncationNote = truncated
+    ? '<p class="empty">Showing first 50 usage sites.</p>'
+    : '';
+  return `<ul>${rows}</ul>${truncationNote}`;
 }
 
 function renderList(values: string[], emptyText: string): string {
@@ -966,6 +1008,11 @@ function isWorkspaceSymbolContext(context: SymbolContext, workspaceRoots: string
     isPathInsideWorkspace(uri.fsPath, workspaceRoots) &&
     isPathInsideWorkspace(context.symbol.filePath, workspaceRoots)
   );
+}
+
+function isWorkspaceUsageSite(site: UsageSite, workspaceRoots: string[]): boolean {
+  const uri = tryParseUri(site.uri);
+  return Boolean(uri && uri.scheme === 'file' && isPathInsideWorkspace(uri.fsPath, workspaceRoots));
 }
 
 function isPathInsideWorkspace(filePath: string, workspaceRoots: string[]): boolean {
@@ -1047,7 +1094,25 @@ function isUsageContext(value: unknown): boolean {
     usedBy &&
     typeof usedBy.available === 'boolean' &&
     Array.isArray(usedBy.symbols) &&
-    usedBy.symbols.every((symbol) => typeof symbol === 'string')
+    usedBy.symbols.every((symbol) => typeof symbol === 'string') &&
+    (usedBy.sites === undefined || (Array.isArray(usedBy.sites) && usedBy.sites.every(isUsageSite))) &&
+    (usedBy.truncated === undefined || typeof usedBy.truncated === 'boolean')
+  );
+}
+
+function isUsageSite(value: unknown): value is UsageSite {
+  const site = value as UsageSite | undefined;
+  return Boolean(
+    site &&
+    typeof site.label === 'string' &&
+    typeof site.uri === 'string' &&
+    typeof site.path === 'string' &&
+    Number.isInteger(site.line) &&
+    site.line > 0 &&
+    Number.isInteger(site.character) &&
+    site.character >= 0 &&
+    (site.containerName === undefined || typeof site.containerName === 'string') &&
+    (site.source === 'language-server' || site.source === 'text-scan')
   );
 }
 
