@@ -89,3 +89,8 @@ npm test
 ```
 
 Press `F5` in VS Code to launch an Extension Development Host, then open a supported source file.
+
+## Architecture Notes
+
+- [docs/architecture.md](docs/architecture.md) explains Perry's runtime lifecycle, data flow, cache boundaries, and extension points.
+- [docs/adr](docs/adr) records architectural decisions.
