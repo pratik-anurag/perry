@@ -32,3 +32,4 @@ pnpm-debug.log*
 Thumbs.db
 .idea/
 .vscode/settings.json
+docs/prompts/codex-feature.md

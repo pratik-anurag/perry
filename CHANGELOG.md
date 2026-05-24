@@ -1,5 +1,11 @@
 # Changelog
 
+
+## 0.1.6
+
+- Bumped the extension package version to `0.1.6` for release.
+- No user-facing behavior changes from `0.1.3`.
+
 ## 0.1.5
 
 - Added clickable usage-site links in hover cards and the details panel.
