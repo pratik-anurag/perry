@@ -42,7 +42,8 @@ const selectors: vscode.DocumentSelector = [
   { language: 'typescriptreact', scheme: 'file' },
   { language: 'javascriptreact', scheme: 'file' },
   { language: 'python', scheme: 'file' },
-  { language: 'go', scheme: 'file' }
+  { language: 'go', scheme: 'file' },
+  { language: 'java', scheme: 'file' }
 ];
 const watcherDebounceMs = 250;
 const perryCommandAllowlist = [

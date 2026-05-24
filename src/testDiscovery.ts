@@ -12,11 +12,16 @@ export interface TestFileSnapshot {
 const TEST_PATTERNS = [
   '**/*.{test,spec}.{ts,tsx,js,jsx,py}',
   '**/*_test.go',
+  '**/*Test.java',
+  '**/*Tests.java',
+  '**/*IT.java',
+  '**/*ITCase.java',
   '**/__tests__/**/*.{ts,tsx,js,jsx,py}',
-  'tests/**/*.{py,ts,tsx,js,jsx,go}'
+  '**/src/test/java/**/*.java',
+  'tests/**/*.{py,ts,tsx,js,jsx,go,java}'
 ];
 
-const EXCLUDE_PATTERN = '**/{node_modules,.git,out,dist,build,coverage}/**';
+const EXCLUDE_PATTERN = '**/{node_modules,.git,.gradle,out,dist,build,target,coverage}/**';
 export const MAX_TEST_FILE_BYTES = 256 * 1024;
 export const MAX_TEST_INDEX_BYTES = 8 * 1024 * 1024;
 
@@ -154,7 +159,8 @@ function basenameWithoutKnownExtensions(filePath: string): string {
   const fileName = path.basename(filePath);
   return fileName
     .replace(/_test\.go$/i, '')
-    .replace(/\.(test|spec)?\.?(ts|tsx|js|jsx|py|go)$/i, '');
+    .replace(/(?:Tests?|ITCase|IT)\.java$/i, '')
+    .replace(/\.(test|spec)?\.?(ts|tsx|js|jsx|py|go|java)$/i, '');
 }
 
 function formatBytes(value: number): string {

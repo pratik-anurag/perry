@@ -63,7 +63,7 @@ On `Perry: Stop`:
 - Document-symbol lookup.
 - Per-document versioned context cache.
 - Reference lookup through the language server.
-- Bounded text-scan fallback for Python and Go usage sites.
+- Bounded text-scan fallback for Python, Go, and Java usage sites.
 - Calls extraction through `symbolAnalysis`.
 - Coordination with Git, test discovery, and CODEOWNERS services.
 
@@ -136,7 +136,7 @@ New feature work should usually extend or derive from this model instead of crea
 6. Symbols are processed with bounded concurrency.
 7. For each symbol, Perry collects:
    - language-server references and usage containers where available;
-   - text-scan usage fallback for Python and Go;
+   - text-scan usage fallback for Python, Go, and Java;
    - called symbols from the symbol body;
    - local Git line context;
    - related tests;

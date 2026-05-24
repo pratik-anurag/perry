@@ -17,7 +17,7 @@ Perry uses VS Code language-server commands first:
 
 When reference data is unavailable or incomplete, Perry may use bounded heuristics:
 
-- Text-scan usage fallback currently applies to Python and Go.
+- Text-scan usage fallback currently applies to Python, Go, and Java.
 - Workspace scan file count is capped.
 - Results are deduplicated and truncated.
 - Scans ignore common generated/dependency folders.

@@ -8,7 +8,7 @@ Example context:
 
 ![alt text](image.png)
 
-The editor line above a symbol uses VS Code CodeLens, so it reserves space and does not overlap source text. Hover a function, method, class, interface, or module to see the full comment-style context card with actions. Where VS Code document links are available, Ctrl/Cmd-click the symbol name to open the details panel.
+The editor line above a symbol uses VS Code CodeLens, so it reserves space and does not overlap source text. Hover a function, method, class, interface, enum, or module to see the full comment-style context card with actions. Where VS Code document links are available, Ctrl/Cmd-click the symbol name to open the details panel.
 
 ## Supported Languages
 
@@ -18,6 +18,7 @@ The editor line above a symbol uses VS Code CodeLens, so it reserves space and d
 - JSX
 - Python
 - Go
+- Java
 
 ## Requirements
 
@@ -25,6 +26,8 @@ The editor line above a symbol uses VS Code CodeLens, so it reserves space and d
 - Local workspace files
 - Git installed for Git context
 - A language server for reference counts
+- Java support requires the VS Code Extension Pack for Java or Language Support for Java by Red Hat
+- Java support also needs a local JDK when the Java language server cannot use an embedded runtime
 
 No external services, API keys, AI integration, telemetry, or network calls are required at runtime.
 
@@ -68,8 +71,13 @@ The extension searches:
 
 - `**/*.{test,spec}.{ts,tsx,js,jsx,py}`
 - `**/*_test.go`
+- `**/*Test.java`
+- `**/*Tests.java`
+- `**/*IT.java`
+- `**/*ITCase.java`
 - `**/__tests__/**/*.{ts,tsx,js,jsx,py}`
-- `tests/**/*.{py,ts,tsx,js,jsx,go}`
+- `**/src/test/java/**/*.java`
+- `tests/**/*.{py,ts,tsx,js,jsx,go,java}`
 
 A test is considered related when it contains the symbol name or its filename contains the source filename stem. Details are limited to five related tests per symbol.
 

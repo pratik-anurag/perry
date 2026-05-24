@@ -22,6 +22,18 @@ test('call-site scanner finds Go calls without matching function definitions or 
   assert.equal(lineContainsCallToSymbol('    text := "buildUser(account)"', 'buildUser', 'go'), false);
 });
 
+test('call-site scanner finds Java calls without matching declarations or comments', () => {
+  assert.equal(lineContainsCallToSymbol('    User user = buildUser(account);', 'buildUser', 'java'), true);
+  assert.equal(lineContainsCallToSymbol('    User user = service.buildUser(account);', 'buildUser', 'java'), true);
+  assert.equal(lineContainsCallToSymbol('    return wrap(buildUser(account));', 'buildUser', 'java'), true);
+  assert.equal(lineContainsCallToSymbol('    return buildUser(account);', 'buildUser', 'java'), true);
+  assert.equal(lineContainsCallToSymbol('    public User buildUser(Account account) {', 'buildUser', 'java'), false);
+  assert.equal(lineContainsCallToSymbol('    User buildUser(Account account);', 'buildUser', 'java'), false);
+  assert.equal(lineContainsCallToSymbol('    public UserService(Account account) {', 'UserService', 'java'), false);
+  assert.equal(lineContainsCallToSymbol('    // buildUser(account)', 'buildUser', 'java'), false);
+  assert.equal(lineContainsCallToSymbol('    text = "buildUser(account)";', 'buildUser', 'java'), false);
+});
+
 test('symbol identifier uses the callable name from qualified symbols', () => {
   assert.equal(getSymbolIdentifier('Service.build_user'), 'build_user');
   assert.equal(getSymbolIdentifier('(*Server).Handle'), 'Handle');

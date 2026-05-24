@@ -32,11 +32,17 @@ const SUPPORTED_SYMBOL_KINDS = new Set<vscode.SymbolKind>([
   vscode.SymbolKind.Method,
   vscode.SymbolKind.Constructor,
   vscode.SymbolKind.Class,
+  vscode.SymbolKind.Enum,
   vscode.SymbolKind.Interface,
   vscode.SymbolKind.Module
 ]);
 const MAX_REFERENCE_USAGE_SITES = 50;
 const MAX_TEXT_SCAN_FILES = 1000;
+const TEXT_SCAN_FILE_PATTERNS = new Map<string, string>([
+  ['go', '**/*.go'],
+  ['java', '**/*.java'],
+  ['python', '**/*.py']
+]);
 
 export class PerryProvider implements vscode.CodeLensProvider {
   private readonly changeEmitter = new vscode.EventEmitter<void>();
@@ -347,7 +353,11 @@ export class PerryProvider implements vscode.CodeLensProvider {
       return cached;
     }
 
-    const includePattern = languageId === 'go' ? '**/*.go' : '**/*.py';
+    const includePattern = TEXT_SCAN_FILE_PATTERNS.get(languageId);
+    if (!includePattern) {
+      return Promise.resolve([]);
+    }
+
     const promise = Promise.resolve(vscode.workspace.findFiles(includePattern, undefined, MAX_TEXT_SCAN_FILES, token))
       .then((files) => files.filter((uri) => !isIgnoredScanPath(uri.fsPath)));
     this.scanFileCache.set(languageId, promise);
@@ -474,13 +484,13 @@ function buildUsageSite(
 }
 
 function shouldUseTextScan(document: vscode.TextDocument): boolean {
-  return document.uri.scheme === 'file' && (document.languageId === 'go' || document.languageId === 'python');
+  return document.uri.scheme === 'file' && TEXT_SCAN_FILE_PATTERNS.has(document.languageId);
 }
 
 function isIgnoredScanPath(filePath: string): boolean {
   return filePath
     .split(/[\\/]+/)
-    .some((part) => ['.git', 'node_modules', 'dist', 'out', 'build', '.venv', 'venv', '__pycache__'].includes(part));
+    .some((part) => ['.git', '.gradle', 'node_modules', 'dist', 'out', 'build', 'target', '.venv', 'venv', '__pycache__'].includes(part));
 }
 
 function isInsideSymbol(sourceUri: vscode.Uri, symbolRange: vscode.Range, reference: vscode.Location): boolean {

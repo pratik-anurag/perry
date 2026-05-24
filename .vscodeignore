@@ -4,6 +4,7 @@
 .gitignore
 src/**
 test/**
+test-fixtures/**
 tsconfig.json
 out/test/**
 **/*.map

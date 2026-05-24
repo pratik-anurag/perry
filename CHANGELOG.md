@@ -1,6 +1,13 @@
 # Changelog
 
 
+## 0.1.7
+
+- Added Java support for CodeLens, hover, symbol links, and details.
+- Added bounded Java text-scan fallback for usage sites when language-server references are unavailable.
+- Added Java related-test discovery for common `*Test.java`, `*Tests.java`, `*IT.java`, and `src/test/java` layouts.
+- Documented Java prerequisites for local language-server support.
+
 ## 0.1.6
 
 - Bumped the extension package version to `0.1.6` for release.

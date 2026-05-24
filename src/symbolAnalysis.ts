@@ -2,29 +2,41 @@ import * as vscode from 'vscode';
 
 const CALL_EXCLUDE_LIST = new Set([
   'after',
+  'assert',
   'await',
   'before',
+  'case',
   'catch',
   'class',
   'defer',
   'def',
   'describe',
+  'do',
   'elif',
   'else',
+  'finally',
   'for',
   'func',
   'function',
   'go',
   'if',
+  'instanceof',
   'interface',
   'it',
   'new',
   'range',
   'return',
   'select',
+  'super',
   'switch',
+  'synchronized',
   'test',
+  'this',
+  'throw',
+  'throws',
+  'try',
   'typeof',
+  'void',
   'while',
   'with'
 ]);
@@ -126,7 +138,7 @@ function stripLineComments(value: string, languageId: string): string {
     return replaceTrailingComment(value, '#');
   }
 
-  if (languageId === 'go') {
+  if (languageId === 'go' || languageId === 'java') {
     return replaceTrailingComment(value, '//');
   }
 
@@ -152,7 +164,33 @@ function isDefinitionLine(value: string, identifier: string, languageId: string)
     return new RegExp(`^\\s*func\\s+(?:\\([^)]*\\)\\s*)?${escapedIdentifier}\\s*\\(`).test(value);
   }
 
+  if (languageId === 'java') {
+    return isJavaDefinitionLine(value, escapedIdentifier);
+  }
+
   return false;
+}
+
+function isJavaDefinitionLine(value: string, escapedIdentifier: string): boolean {
+  if (/^\s*(?:assert|break|case|continue|do|else|for|if|new|return|switch|throw|try|while)\b/.test(value)) {
+    return false;
+  }
+
+  const annotationPattern = String.raw`(?:@[\w.]+(?:\([^)]*\))?\s*)*`;
+  const modifierPattern = String.raw`(?:(?:public|protected|private|static|final|abstract|native|synchronized|strictfp|default)\s+)*`;
+  const typeParameterPattern = String.raw`(?:<[^;{}()]+>\s*)?`;
+  const typePattern = String.raw`(?:[\w$.\[\]?]+(?:\s*<[^;{}()]+>)?\s+)`;
+  const methodPattern = new RegExp(
+    String.raw`^\s*${annotationPattern}${modifierPattern}${typeParameterPattern}(?:${typePattern})+${escapedIdentifier}\s*\(`
+  );
+  const completeConstructorPattern = new RegExp(
+    String.raw`^\s*${annotationPattern}(?:(?:public|protected|private)\s+)?${escapedIdentifier}\s*\([^;{}]*\)\s*(?:throws\s+[\w$.,\s]+)?\{`
+  );
+  const modifierConstructorStartPattern = new RegExp(
+    String.raw`^\s*${annotationPattern}(?:public|protected|private)\s+${escapedIdentifier}\s*\(`
+  );
+
+  return methodPattern.test(value) || completeConstructorPattern.test(value) || modifierConstructorStartPattern.test(value);
 }
 
 function escapeRegExp(value: string): string {

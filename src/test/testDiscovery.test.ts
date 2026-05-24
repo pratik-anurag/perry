@@ -14,6 +14,8 @@ test('test file matching detects source stem and symbol references', () => {
   assert.equal(isRelatedTestFile('/repo/src/userService.ts', 'createUser', '/repo/tests/account.spec.ts', 'createUser()'), true);
   assert.equal(isRelatedTestFile('/repo/src/userService.ts', 'createUser', '/repo/tests/account.spec.ts', 'deleteUser()'), false);
   assert.equal(isRelatedTestFile('/repo/pkg/payments/service.go', 'ChargeCustomer', '/repo/pkg/payments/service_test.go', ''), true);
+  assert.equal(isRelatedTestFile('/repo/src/main/java/UserService.java', 'createUser', '/repo/src/test/java/UserServiceTest.java', ''), true);
+  assert.equal(isRelatedTestFile('/repo/src/main/java/UserService.java', 'createUser', '/repo/src/test/java/AccountTests.java', 'service.createUser()'), true);
 });
 
 test('test file discovery limits related matches', () => {
